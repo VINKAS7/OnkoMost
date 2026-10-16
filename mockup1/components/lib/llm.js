@@ -104,3 +104,23 @@ export async function completeJSON(opts) {
   const r = await complete(opts);
   return { ...r, data: JSON.parse(r.content) };
 }
+
+// --- document scan (server path: mockup1/backend, e-INFRA CZ OpenAI-compatible models) -----------------------
+/** Ask one model on the prototype backend which of `items` (open pathway steps) the file documents. */
+export async function scanDocument({ file, items, model, signal }) {
+  const { url = '/api/doc-scan' } = config().docScan || {};
+  const body = new FormData();
+  body.append('file', file, file.name);
+  body.append('items', JSON.stringify(items));
+  body.append('models', model);
+  let res;
+  try { res = await fetch(url, { method: 'POST', body, signal }); }
+  catch (e) { if (e.name === 'AbortError') throw e; throw new Error('backend nedostupný'); }
+  if (res.status === 404 || res.status === 405 || res.status === 501) throw new Error('backend neběží (statický server)');
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.detail || `HTTP ${res.status}`);
+  const r = j.results?.[0];
+  if (!r) throw new Error('prázdná odpověď');
+  if (r.error) throw new Error(r.error);
+  return { ...r, file: j.file };
+}

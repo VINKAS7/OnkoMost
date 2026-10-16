@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>onco-dx-pathway demo</title>
+<style>
+  :root { --accent: #0E5A66; }
+  body { margin: 0; padding: 16px; background: #F3F3EF; font: 15px/1.45 system-ui, sans-serif; color: #18212B; }
+  main { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; }
+  label { display: grid; gap: 2px; font-size: 13px; font-weight: 600; color: #55606C; }
+  select, input, button { font: inherit; min-height: 44px; padding: 0 10px; border: 1px solid #8A9199; border-radius: 8px; background: #fff; color: inherit; max-width: 100%; }
+  button { font-weight: 600; cursor: pointer; }
+  :focus-visible { outline: 3px solid #0E5A66; outline-offset: 2px; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .check input { min-height: 0; width: 20px; height: 20px; }
+  pre { background: #fff; border: 1px solid #DAD9D2; border-radius: 8px; padding: 10px; font-size: 12px; overflow: auto; max-height: 220px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  h1 { font-size: 20px; margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>&lt;onco-dx-pathway&gt; – demo</h1>
+  <div class="bar">
+    <label>Pathway
+      <select id="src">
+        <option value="../../data/dx-pathway-pancreas.json">C25 pankreas</option>
+        <option value="../../data/dx-pathway-liver_hcc.json">C22.0 HCC</option>
+        <option value="../../data/dx-pathway-ovary.json">C56–57 ovarium</option>
+        <option value="/api/dx-pathways/pancreas">C25 pankreas z Neo4j (backend)</option>
+      </select></label>
+    <label>Mode
+      <select id="mode"><option>full</option><option>compact</option><option>gp</option></select></label>
+    <label>Language
+      <select id="lang"><option>cs</option><option>en</option></select></label>
+    <label class="check"><input type="checkbox" id="editable" checked> editable</label>
+    <button id="sample" type="button">Sample state</button>
+    <button id="reset" type="button">Clear state</button>
+  </div>
+
+  <onco-dx-pathway id="dx" src="../../data/dx-pathway-pancreas.json" mode="full" editable></onco-dx-pathway>
+
+  <section aria-labelledby="st"><p id="st" style="font-size:13px;font-weight:600;color:#55606C;margin:0 0 4px">State (<code>el.state</code>, updated on <code>dx-state-change</code>; edit and press Apply)</p>
+    <pre id="state" contenteditable="true" spellcheck="false" aria-labelledby="st"></pre></section>
+  <div class="bar"><button id="apply" type="button">Apply state</button><span id="log" role="status" style="font-size:13px;color:#55606C"></span></div>
+</main>
+<script type="module">
+  import './onco-dx-pathway.js';
+  const $ = (id) => document.getElementById(id);
+  const dx = $('dx');
+  // ?src=<url>&mode=…&lang=… override the defaults (e.g. ?src=/api/dx-pathways/ovary)
+  const q = new URLSearchParams(location.search);
+  for (const k of ['src', 'mode', 'lang']) if (q.get(k)) { dx.setAttribute(k, q.get(k)); if ($(k).querySelector(`option[value="${q.get(k)}"]`) || k !== 'src') $(k).value = q.get(k); }
+  const show = () => { $('state').textContent = JSON.stringify(dx.state, null, 2); };
+  const SAMPLE = {
+    pancreas: { nodes: { referral: 'done', triage: 'done', bloods: 'done', ct_pancreas: 'done', ca19_9: 'in_progress', biliary_drainage: 'done' },
+      decisions: {}, facts: { jaundice: true, cholestasis: true, tumour_size_mm: 32 } },
+  };
+  $('src').onchange = (e) => dx.setAttribute('src', e.target.value);
+  $('mode').onchange = (e) => dx.setAttribute('mode', e.target.value);
+  $('lang').onchange = (e) => dx.setAttribute('lang', e.target.value);
+  $('editable').onchange = (e) => dx.toggleAttribute('editable', e.target.checked);
+  $('reset').onclick = () => { dx.state = {}; show(); };
+  $('sample').onclick = () => { dx.state = SAMPLE[dx.pathway?.code] || SAMPLE.pancreas; show(); };
+  $('apply').onclick = () => {
+    try { dx.state = JSON.parse($('state').textContent); $('log').textContent = 'State applied.'; }
+    catch (err) { $('log').textContent = `Invalid JSON: ${err.message}`; }
+  };
+  dx.addEventListener('dx-state-change', (e) => { show(); $('log').textContent = `dx-state-change: ${JSON.stringify(e.detail.change)}`; });
+  dx.addEventListener('dx-select', (e) => { $('log').textContent = `dx-select: ${e.detail.id} (${e.detail.eval?.vstate})`; });
+  dx.addEventListener('dx-evaluated', (e) => { document.title = `${e.detail.ready ? 'ready' : `${e.detail.red.length} missing`} – onco-dx-pathway`; });
+  show();
+</script>
+</body>
+</html>

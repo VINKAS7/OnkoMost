@@ -11,6 +11,10 @@
 <case-header case-id="selected" role="koordinator">
 </case-header>
 <case-tracker case-id="selected"><tt-bar case-id="selected"></tt-bar></case-tracker>
+
+<dx-pathway case-id="selected">
+</dx-pathway>
+
 <div class="detail-grid">
 <div class="stack">
 <task-plan case-id="selected">

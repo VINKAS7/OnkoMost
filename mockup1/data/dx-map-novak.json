@@ -1,0 +1,76 @@
+{
+  "pathway": "data/dx-pathway-pancreas.json",
+  "note": "How the demo case (care-plan tasks, values, MDT record) is read onto the ČOS diagnostic pathway. Rule-based, no AI. Tissue sampling (eus_fnb) is the ERCP brushing in this case, not EUS.",
+  "tasks": {
+    "intake": [
+      "triage"
+    ],
+    "hospital": [
+      "bloods",
+      "prior_reports"
+    ],
+    "ercp": [
+      "biliary_drainage",
+      "eus_fnb"
+    ],
+    "ct": [
+      "ct_pancreas"
+    ],
+    "markers": [
+      "ca19_9"
+    ],
+    "histology": [
+      "histology"
+    ]
+  },
+  "values": {
+    "ecog": {
+      "node": "performance_status",
+      "fact": "ecog"
+    }
+  },
+  "facts": {
+    "jaundice": true,
+    "cholestasis": true,
+    "on_anticoagulant": false,
+    "tumour_size_mm": 32
+  },
+  "factSources": {
+    "jaundice": "Handover · anamnéza: ikterus od 5. 1. 2026",
+    "cholestasis": "Handover · laboratoř: bilirubin 186 µmol/l",
+    "on_anticoagulant": "Handover · medikace: metformin, ramipril",
+    "tumour_size_mm": "Handover · UZ 6. 1.: ložisko v hlavě pankreatu cca 32 mm"
+  },
+  "mdtIssue": {
+    "nodes": [
+      "histology"
+    ],
+    "facts": {
+      "nondiagnostic_biopsies": 1
+    }
+  },
+  "decisions": {
+    "resectability": {
+      "from": "diagnosis",
+      "match": [
+        [
+          "hraničně resekabil",
+          "borderline"
+        ],
+        [
+          "lokálně pokročil",
+          "locally_advanced"
+        ],
+        [
+          "metasta",
+          "metastatic"
+        ],
+        [
+          "resekabil",
+          "resectable"
+        ]
+      ]
+    }
+  },
+  "mdtNode": "mdt"
+}

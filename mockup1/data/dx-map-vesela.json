@@ -1,0 +1,61 @@
+{
+  "pathway": "data/dx-pathway-ovary.json",
+  "note": "How the Veselá demo case is read onto the ČOS ovarian diagnostic pathway. Rule-based, no AI. Nephrology covers the renal-function bloods.",
+  "tasks": {
+    "intake": [
+      "triage"
+    ],
+    "markers": [
+      "tumour_markers"
+    ],
+    "nephro": [
+      "bloods",
+      "contrast_clearance"
+    ],
+    "ct": [
+      "ct_staging"
+    ],
+    "gynonc": [
+      "expert_us"
+    ]
+  },
+  "handover": {
+    "prior_reports": ".",
+    "performance_status": "\\bECOG\\b",
+    "tumour_markers": "CA-?125"
+  },
+  "values": {
+    "ecog": {
+      "node": "performance_status",
+      "fact": "ecog"
+    }
+  },
+  "facts": {
+    "age": 57,
+    "ckd": true,
+    "ca125": 486,
+    "ecog": 1
+  },
+  "factSources": {
+    "age": "Pacientka 57 let",
+    "ckd": "Handover · komorbidity: ADPKD, CKD G3a",
+    "ca125": "Handover · laboratoř: CA-125 486 kU/l",
+    "ecog": "Handover · anamnéza: ECOG 1"
+  },
+  "mdtNode": "mdt",
+  "decisions": {
+    "route": {
+      "from": "diagnosis",
+      "match": [
+        [
+          "neoadjuvan",
+          "neoadjuvant"
+        ],
+        [
+          "cytoredukc",
+          "primary_cytoreduction"
+        ]
+      ]
+    }
+  }
+}

@@ -60,6 +60,23 @@ export function setEcog(id, value) {
   });
 }
 
+/** Doctor confirms an AI finding from an uploaded document: the pathway step counts as documented. */
+export function acceptDocFinding(id, f) {
+  updateCase(id, (c) => {
+    c.docFindings = { ...(c.docFindings || {}), [f.step]: { ...f, confirmedBy: GP_NAME, at: nowStamp('gp') } };
+    if (f.facts?.ecog != null && !c.values.ecog) c.values.ecog = { value: f.facts.ecog, at: demoDate('gp'), by: GP_NAME, source: f.file };
+  });
+}
+
+export function removeDocFinding(id, step) {
+  updateCase(id, (c) => {
+    const f = c.docFindings?.[step];
+    if (!f) return;
+    delete c.docFindings[step];
+    if (f.facts?.ecog != null && c.values.ecog?.source === f.file) delete c.values.ecog;
+  });
+}
+
 export function submitReferral(id) {
   updateCase(id, (c) => {
     c.phase = 'submitted';

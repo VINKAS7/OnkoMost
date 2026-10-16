@@ -31,6 +31,10 @@
 </handover-panel>
 <missing-list case-id="novak" audience="gp">
 </missing-list>
+<doc-gap-scan case-id="novak">
+</doc-gap-scan>
+<dx-pathway case-id="novak" mode="gp">
+</dx-pathway>
 <confirm-send case-id="novak">
 </confirm-send>
 </div>

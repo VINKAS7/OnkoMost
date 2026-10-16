@@ -1,0 +1,10 @@
+# Optional backend of the prototype (document scan on the GP screen, diagnostic pathways from Neo4j).
+# The static prototype needs none of this. scripts/setup.sh installs it into mockup1/.venv.
+#   python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt      (from mockup1/)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9    # multipart file upload
+httpx>=0.27                # OpenAI-compatible LLM endpoint (e-INFRA CZ)
+pypdf>=4.0                 # text layer of uploaded PDFs
+python-docx>=1.1           # text of uploaded DOCX
+neo4j>=5.20                # diagnostic pathways in Neo4j (backend/dx_graph.py)

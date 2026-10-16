@@ -18,4 +18,8 @@
 </handover-panel>
 </div>
 </div>
+
+<dx-pathway case-id="selected" mode="compact">
+</dx-pathway>
+
 </div>

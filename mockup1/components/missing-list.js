@@ -22,6 +22,7 @@ class MissingList extends KocElement {
     .ecog button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
     .resolved { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .resolved .icon { color: var(--ok); }
+    .resolved > span { flex: 1 1 16em; min-width: 0; }
     .rule { margin-top: 12px; }
   `;
 
@@ -46,6 +47,7 @@ class MissingList extends KocElement {
       } else rows.push(m);
     }
     const ecog = c.values?.ecog;
+    const fromDocs = all.filter((m) => m.resolvedBy === 'document');
     return html`
       <section class="card" aria-labelledby="ml-h">
         <div class="card-head">
@@ -63,7 +65,9 @@ class MissingList extends KocElement {
           </li>`)}
         </ul>
         ${!rows.length ? html`<p class="banner ok">${icon('check')}Podklady pro 1. MDT jsou kompletní.</p>` : ''}
-        ${ecog ? html`<p class="resolved">${icon('check')}<span>Doplněno: Výkonnostní stav (ECOG) = <strong class="mono">${ecog.value}</strong> · ${fmtDate(ecog.at)}</span>
+        ${fromDocs.length ? html`<p class="resolved">${icon('check')}<span>Doloženo z dokumentu: ${fromDocs.map((m) => m.shortLabel || m.label).join(', ')}
+          · ${fromDocs[0].doc.file} · potvrdil(a) ${fromDocs[0].doc.confirmedBy}</span></p>` : ''}
+        ${ecog ? html`<p class="resolved">${icon('check')}<span>Doplněno: Výkonnostní stav (ECOG) = <strong class="mono">${ecog.value}</strong> · ${fmtDate(ecog.at)}${ecog.source ? ` · z dokumentu ${ecog.source}` : ''}</span>
           <button class="btn sm ghost" type="button" data-action="ecog-clear" data-key="ecog-clear">Zrušit</button></p>` : ''}
         <p class="note rule">${icon('check')}<span>Kontrolu provádí pravidlo podle šablony „${tpl.title}“, ne AI.</span></p>`}
       </section>`;
