@@ -1,0 +1,8 @@
+[
+  { "id": "vfn-hpb", "label": "VFN Praha – KOC · koordinace HPB (pankreas, játra, žlučové cesty)", "recommended": true },
+  { "id": "ikem-hpb", "label": "IKEM Praha – KOC · HPB chirurgie" },
+  { "id": "fnm", "label": "FN Motol – KOC" },
+  { "id": "fnkv", "label": "FN Královské Vinohrady – KOC" },
+  { "id": "fnhk", "label": "FN Hradec Králové – KOC" },
+  { "id": "mou", "label": "Masarykův onkologický ústav Brno – KOC" }
+]

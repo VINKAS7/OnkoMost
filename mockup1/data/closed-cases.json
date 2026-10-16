@@ -1,0 +1,28 @@
+{
+  "cases": [
+    { "id": "novak", "live": true, "name": "Josef Novák", "age": 60, "dg": "C25.0", "koc": "KOC VFN", "closed": "2026-01-27" },
+    { "id": "svoboda", "name": "Petr Svoboda", "age": 55, "state": "new", "dg": "C24.1", "koc": "KOC VFN", "closed": "2026-01-26",
+      "line": "17 dní · 1× MDT" },
+    { "id": "cerna", "name": "Eva Černá", "age": 64, "state": "question", "dg": "C25.1", "koc": "KOC VFN", "closed": "2026-01-22",
+      "line": "34 dní · čeká na odpověď koordinátora" },
+    { "id": "kralova", "name": "Jana Králová", "age": 58, "state": "checked", "dg": "C22.0", "koc": "KOC IKEM", "closed": "2026-01-19",
+      "line": "" }
+  ],
+  "novak": {
+    "summary": {
+      "rows": [
+        { "label": "Diagnóza", "text": "C25.0 adenokarcinom hlavy pankreatu, resekabilní", "source": "Zpráva z 2. MDT" },
+        { "label": "1. MDT 13. 1.", "text": "Histologie z ERCP neprůkazná → doplnit EUS s biopsií, znovu na MDT", "source": "Zpráva z 1. MDT" },
+        { "label": "2. MDT 20. 1.", "text": "Resekabilní nález, indikace k pankreatoduodenektomii, poté zvážit adjuvantní léčbu", "source": "Zpráva z 2. MDT" },
+        { "label": "Léčba", "text": "26. 1. operace, KOC VFN – Chirurgie", "source": "Operační protokol" },
+        { "label": "Vykázané výkony", "text": "[kódy výkonů dle sazebníku – doplní tým s mentorem VZP]", "placeholder": true }
+      ]
+    },
+    "documents": [
+      { "name": "Zpráva z 1. MDT (13. 1.).pdf", "kind": "pdf" },
+      { "name": "Zpráva z 2. MDT (20. 1.).pdf", "kind": "pdf" },
+      { "name": "Operační protokol (26. 1.).pdf", "kind": "pdf" },
+      { "name": "Původní referování + handover (6. 1.)", "kind": "record" }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>Cesta pacienta · prototyp KOC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="RAKATHON 2026 – Cesta pacienta bez ztráty informací. Klikací prototyp: referující lékař, koordinátor KOC, revizní lékař VZP.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <link rel="stylesheet" href="styles/theme.css">
+</head>
+<body>
+  <div id="app">Načítám prototyp…</div>
+  <script>
+    window.KOC_CONFIG = {
+      // FHIR: 'data/' = mock bundle from /data. For a real server set fhirMock: false and
+      // fhirBaseUrl: 'https://iris.ambulance-benesov.cz/fhir/r4' (calls {base}/Patient/8842/$everything).
+      fhirBaseUrl: 'data/',
+      fhirMock: true,
+      // LLM routing per task: 'mock' | 'webllm' (stub) | 'openai-compatible' (stub).
+      llmRouting: {
+        'classify-document': 'mock',
+        'extract-handover': 'mock',
+        'structure-mdt': 'mock',
+        'summarize-for-reviewer': 'mock',
+        'draft-message': 'mock',
+      },
+      llmProviders: {
+        'openai-compatible': { baseUrl: 'http://localhost:8000', model: 'qwen2.5-7b-instruct', apiKey: '' },
+        webllm: { model: 'Qwen2.5-7B-Instruct-q4f16_1-MLC' },
+      },
+    };
+
+    // Hide the docsify sidebar on app screens; keep it on the README/overview page.
+    function hideSidebarOnAppPages(hook, vm) {
+      const APP = ['/gp', '/koordinator', '/revizni'];
+      const apply = () => document.body.classList.toggle('app-page', APP.includes(vm.route.path));
+      hook.beforeEach((md) => { apply(); return md; });
+      hook.doneEach(apply);
+    }
+
+    window.$docsify = {
+      name: 'Cesta pacienta',
+      loadSidebar: true,
+      auto2top: true,
+      homepage: 'README.md',
+      noEmoji: true,
+      subMaxLevel: 0,
+      plugins: [hideSidebarOnAppPages],
+    };
+  </script>
+  <script type="module" src="components/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+</body>
+</html>

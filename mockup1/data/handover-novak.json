@@ -1,0 +1,19 @@
+{
+  "template": "pancreas-v1",
+  "templateLabel": "karcinom pankreatu v1",
+  "sections": [
+    { "id": "history", "title": "Anamnéza a symptomy",
+      "text": "Ikterus od 5. 1. 2026, nebolestivý. Úbytek hmotnosti 4 kg za 2 měsíce. Acholická stolice, tmavá moč.",
+      "source": "Epikríza.pdf, str. 1" },
+    { "id": "imaging", "title": "Zobrazovací vyšetření",
+      "text": "UZ břicha 6. 1.: hypoechogenní ložisko v hlavě pankreatu cca 32 mm, dilatace intra- i extrahepatálních žlučových cest.",
+      "source": "FHIR DiagnosticReport" },
+    { "id": "labs", "title": "Laboratoř", "mono": true,
+      "text": "Bilirubin 186 µmol/l ↑ · ALP 4,2 µkat/l ↑ · GMT 7,8 µkat/l ↑ · CRP 12 mg/l",
+      "source": "FHIR Observation ×6" },
+    { "id": "comorbidities", "title": "Komorbidity, medikace, alergie",
+      "text": "DM 2. typu, hypertenze · metformin 1000 mg 2×denně, ramipril 5 mg · alergie: penicilin",
+      "source": "FHIR Condition ×2 · MedicationStatement ×2 · AllergyIntolerance" }
+  ],
+  "originals": ["Epikríza.pdf", "FHIR bundle (14 zdrojů)"]
+}

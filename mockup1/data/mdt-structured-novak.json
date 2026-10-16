@@ -1,0 +1,19 @@
+{
+  "diagnosis": "C25.0 adenokarcinom hlavy pankreatu, resekabilní",
+  "mdt": [
+    { "id": "mdt1", "title": "1. MDT", "date": "2026-01-13",
+      "conclusion": "Histologie z ERCP neprůkazná → doplnit EUS s biopsií, znovu na MDT",
+      "issue": "1. MDT bez histologie", "timelineLabel": "1. MDT – chyběla průkazná histologie",
+      "available": ["history", "imaging-us", "labs", "comorbidities", "ct", "markers", "ecog", "blood-count", "coagulation"] },
+    { "id": "mdt2", "title": "2. MDT", "date": "2026-01-20", "decision": true,
+      "conclusion": "Resekabilní nález, indikace k pankreatoduodenektomii, poté zvážit adjuvantní léčbu",
+      "timelineLabel": "2. MDT – rozhodnutí",
+      "available": ["history", "imaging-us", "labs", "comorbidities", "ct", "histology", "markers", "ecog", "blood-count", "coagulation"] }
+  ],
+  "treatment": {
+    "start": "2026-01-26",
+    "label": "26. 1. operace, KOC VFN – Chirurgie",
+    "plan": "Pankreatoduodenektomie 26. 1. 2026 (KOC VFN – Chirurgie), poté zvážit adjuvantní chemoterapii."
+  },
+  "source": "Zpráva z MDT"
+}
