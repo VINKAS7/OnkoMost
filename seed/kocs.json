@@ -1,0 +1,27 @@
+[
+  {"code": "KOC1", "name": "KOC Nemocnice Severní", "city": "Praha 8", "coordinator_name": "Bc. Jana Malá",
+   "coordinator_email": "koordinator@koc-severni.example",
+   "staff": {"koc_doctor": "MUDr. Daniel Fiala, Ph.D.", "radiology": "Radiologická klinika", "endoscopy": "Endoskopie KOC 1",
+             "pathology": "Ústav patologie KOC 1", "mdt": "MDT KOC Nemocnice Severní", "k2_coordinator": "Koordinátor léčby (K2) KOC 1"},
+   "mdt_members": []},
+  {"code": "KOC2", "name": "KOC Nemocnice Lipová", "city": "Praha 4", "coordinator_name": "Bc. Lucie Dvořáková",
+   "coordinator_email": "koordinace-git@koc-lipova.example",
+   "staff": {"koc_doctor": "MUDr. Martin Svoboda", "radiology": "MUDr. Eva Šimková", "endoscopy": "MUDr. Martin Svoboda",
+             "pathology": "MUDr. Radek Pokorný, Ph.D.", "mdt": "MDT pro nádory GIT", "k2_coordinator": "Koordinátor léčby (K2) – onkologie"},
+   "mdt_members": [
+     {"name": "doc. MUDr. Pavel Hrubý, Ph.D.", "role": "chirurg, HPB chirurgie (předsedající)"},
+     {"name": "MUDr. Lenka Marková", "role": "klinická onkologie"},
+     {"name": "MUDr. Ondřej Kalous", "role": "radiační onkologie"},
+     {"name": "MUDr. Martin Svoboda", "role": "gastroenterologie"},
+     {"name": "MUDr. Eva Šimková", "role": "radiologie"},
+     {"name": "MUDr. Radek Pokorný, Ph.D.", "role": "patologie"},
+     {"name": "Bc. Lucie Dvořáková", "role": "koordinátorka KOC"}]},
+  {"code": "KOC3", "name": "KOC Fakultní nemocnice Brněnská", "city": "Brno", "coordinator_name": "Mgr. Petr Novák",
+   "coordinator_email": "koordinator@koc-brnenska.example", "staff": {}, "mdt_members": []},
+  {"code": "KOC4", "name": "KOC Nemocnice Ostravská", "city": "Ostrava", "coordinator_name": "Bc. Eva Horáková",
+   "coordinator_email": "koordinator@koc-ostravska.example", "staff": {}, "mdt_members": []},
+  {"code": "KOC5", "name": "KOC Fakultní nemocnice Plzeňská", "city": "Plzeň", "coordinator_name": "Bc. Tomáš Krejčí",
+   "coordinator_email": "koordinator@koc-plzenska.example", "staff": {}, "mdt_members": []},
+  {"code": "KOC6", "name": "KOC Nemocnice Hradecká", "city": "Hradec Králové", "coordinator_name": "Mgr. Alena Veselá",
+   "coordinator_email": "koordinator@koc-hradecka.example", "staff": {}, "mdt_members": []}
+]

@@ -1,0 +1,69 @@
+import { Link } from "react-router-dom";
+import { fmtDate } from "../../api";
+import { Due, Empty, PageHead, StateTag } from "../../components/ui";
+import { useApp } from "../../ctx";
+import { useFetch } from "../../hooks";
+import type { CaseSummary } from "../../types";
+
+const QUEUES: CaseSummary["queue"][] = ["new", "active", "on_hold", "closed"];
+
+function CaseCard({ c }: { c: CaseSummary }) {
+  const { t, pick } = useApp();
+  const n = c.next_task;
+  const total = (c.doc_counts.have ?? 0) + (c.doc_counts.missing ?? 0) + (c.doc_counts.conflict ?? 0);
+  return (
+    <Link to={`/koc/cases/${c.id}`} className="row-link">
+      <div className="spread"><b>{c.patient_name}</b><StateTag state={c.state} /></div>
+      <div className="meta" style={{ marginTop: 2 }}>
+        <span>{pick(c.pathway.name, c.pathway.name_en)}</span>
+        <span>{c.koc.code}</span>
+        <span>{c.doc_counts.have ?? 0}/{total} {t("tab.documents").toLowerCase()}</span>
+        {!!c.doc_counts.conflict && <span style={{ color: "var(--yellow)" }}>{c.doc_counts.conflict} {t("doc.conflict").toLowerCase()}</span>}
+      </div>
+      {n && (
+        <div className="small" style={{ marginTop: 8 }}>
+          {pick(n.title, n.title_en)}
+          <div className="meta"><span>{n.owner_name}</span><Due task={n} /></div>
+        </div>
+      )}
+      {!n && c.closed_on && <div className="meta" style={{ marginTop: 8 }}><span>{t("st.closed")} {fmtDate(c.closed_on)}</span></div>}
+    </Link>
+  );
+}
+
+export default function Dashboard() {
+  const { kocId, koc, kocs, setKocId, t } = useApp();
+  // fetch every centre once and filter here, so we can point to patients at another centre
+  const { data, error } = useFetch<CaseSummary[]>("/api/cases", 8000);
+  const all = data ?? [];
+  const cases = kocId ? all.filter((c) => c.koc.id === kocId) : all;
+  const elsewhere = kocs.filter((k) => k.id !== kocId && all.some((c) => c.koc.id === k.id));
+  const open = cases.filter((c) => c.queue !== "closed");
+  const overdue = open.reduce((a, c) => a + c.overdue_tasks, 0);
+  return (
+    <div className="page wide">
+      <PageHead title={t("koc.title")}
+        lead={<span className="meta"><span>{koc ? koc.coordinator_name : t("top.all")}</span><span>{open.length} {t("kpi.care").toLowerCase()}</span>
+          <span>{open.reduce((a, c) => a + c.open_tasks, 0)} {t("kpi.tasks").toLowerCase()}</span>
+          {overdue > 0 && <span style={{ color: "var(--red)" }}>{overdue} {t("kpi.overdue").toLowerCase()}</span>}</span>} />
+      {error && <div className="callout red">{error}</div>}
+      {data && !cases.length && elsewhere.length > 0 && (
+        <div className="callout yellow"><div className="grow row wrap">{t("koc.elsewhere")}
+          {elsewhere.map((k) => <button key={k.id} className="sm" onClick={() => setKocId(k.id)}>{k.name} ({all.filter((c) => c.koc.id === k.id).length})</button>)}
+        </div></div>
+      )}
+      <div className="grid4">
+        {QUEUES.map((q) => {
+          const list = cases.filter((c) => c.queue === q);
+          return (
+            <section key={q} className="col">
+              <div className="row"><b>{t(`q.${q}`)}</b><span className="muted small">{list.length}</span></div>
+              {list.map((c) => <CaseCard key={c.id} c={c} />)}
+              {!list.length && <Empty>—</Empty>}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

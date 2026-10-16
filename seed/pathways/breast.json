@@ -1,0 +1,39 @@
+{
+  "code": "breast",
+  "order": 4,
+  "name": "Karcinom prsu",
+  "name_en": "Breast cancer",
+  "cancer_type": "Karcinom prsu",
+  "icd_codes": ["C50"],
+  "guideline_source": "Intended source of truth: ČOS guidelines. DRAFT skeleton (mammography + ultrasound, core biopsy with histology and receptors, staging if indicated) – must be validated by clinicians.",
+  "tail": "standard",
+  "tail_from": ["prior_reports", "histology", "staging"],
+  "graph": {
+    "nodes": [
+      {"id": "referral", "type": "start", "label": "Žádost PL / screening", "label_en": "Referral from GP / screening",
+       "phase": "intake", "owner_role": "gp", "sla_days": 0, "completion": "evidence",
+       "requires": [{"kind": "document", "doc_type": "referral"}]},
+      {"id": "triage", "type": "step", "label": "Triáž", "label_en": "Triage",
+       "phase": "intake", "owner_role": "coordinator", "sla_days": 1, "completion": "manual", "action": "Přijmout případ"},
+      {"id": "prior_reports", "type": "step", "label": "Předchozí zprávy", "label_en": "Prior reports",
+       "phase": "diagnostics", "owner_role": "coordinator", "sla_days": 3, "completion": "evidence",
+       "requires": [{"kind": "mentioned_exams_received"}]},
+      {"id": "imaging", "type": "step", "label": "Mamografie + UZ prsu", "label_en": "Mammography + breast ultrasound",
+       "phase": "diagnostics", "owner_role": "coordinator", "sla_days": 7, "completion": "evidence",
+       "requires": [{"kind": "exam", "exam_type": ["mammography", "ultrasound"]}]},
+      {"id": "histology", "type": "step", "label": "Core-cut biopsie, histologie + receptory", "label_en": "Core biopsy, histology + receptors",
+       "phase": "diagnostics", "owner_role": "pathology", "sla_days": 7, "completion": "evidence",
+       "requires": [{"kind": "diagnosis", "status": "confirmed"}]},
+      {"id": "staging", "type": "step", "label": "Staging (CT / scintigrafie dle indikace)", "label_en": "Staging (CT / bone scan if indicated)",
+       "phase": "diagnostics", "owner_role": "coordinator", "sla_days": 10, "completion": "evidence", "blocking": false,
+       "requires": [{"kind": "exam", "exam_type": ["ct", "pet_ct"]}]}
+    ],
+    "edges": [
+      {"source": "referral", "target": "triage"},
+      {"source": "triage", "target": "prior_reports"},
+      {"source": "triage", "target": "imaging"},
+      {"source": "imaging", "target": "histology"},
+      {"source": "histology", "target": "staging"}
+    ]
+  }
+}
