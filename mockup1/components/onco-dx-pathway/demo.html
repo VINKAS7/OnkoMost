@@ -28,7 +28,7 @@
         <option value="../../data/dx-pathway-pancreas.json">C25 pankreas</option>
         <option value="../../data/dx-pathway-liver_hcc.json">C22.0 HCC</option>
         <option value="../../data/dx-pathway-ovary.json">C56–57 ovarium</option>
-        <option value="http://localhost:8000/api/dx-pathways/pancreas">C25 pankreas z Neo4j (backend :8000)</option>
+        <option value="/api/dx-pathways/pancreas">C25 pankreas z Neo4j (backend)</option>
       </select></label>
     <label>Mode
       <select id="mode"><option>full</option><option>compact</option><option>gp</option></select></label>
@@ -49,7 +49,7 @@
   import './onco-dx-pathway.js';
   const $ = (id) => document.getElementById(id);
   const dx = $('dx');
-  // ?src=<url>&mode=…&lang=… override the defaults (e.g. ?src=http://localhost:8000/api/dx-pathways/ovary)
+  // ?src=<url>&mode=…&lang=… override the defaults (e.g. ?src=/api/dx-pathways/ovary)
   const q = new URLSearchParams(location.search);
   for (const k of ['src', 'mode', 'lang']) if (q.get(k)) { dx.setAttribute(k, q.get(k)); if ($(k).querySelector(`option[value="${q.get(k)}"]`) || k !== 'src') $(k).value = q.get(k); }
   const show = () => { $('state').textContent = JSON.stringify(dx.state, null, 2); };

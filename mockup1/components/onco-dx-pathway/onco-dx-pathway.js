@@ -1,7 +1,7 @@
 // <onco-dx-pathway> — standalone Web Component (no framework, no build step).
 //
 // Draws a diagnostic pathway (format onkomost.diagnostic-pathway/0.1: a JSON file, or the same JSON exported from
-// Neo4j by backend/pathway/dx_graph.py) as an SVG flowchart and colours every step from the case state:
+// Neo4j by mockup1/backend/dx_graph.py) as an SVG flowchart and colours every step from the case state:
 //   red  = missing and needed for the MDT, grey = missing but not needed, green = done, …
 // The states come from the rule engine in engine.js (generated from pathway-viewer/src/engine.ts). Rule-based, no AI.
 // Documentation: README.md here (quick start) and README_pathway.md in the prototype root.

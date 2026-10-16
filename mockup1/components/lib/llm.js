@@ -105,7 +105,7 @@ export async function completeJSON(opts) {
   return { ...r, data: JSON.parse(r.content) };
 }
 
-// --- document scan (server path: mockup1/server, e-INFRA CZ OpenAI-compatible models) -----------------------
+// --- document scan (server path: mockup1/backend, e-INFRA CZ OpenAI-compatible models) -----------------------
 /** Ask one model on the prototype backend which of `items` (open pathway steps) the file documents. */
 export async function scanDocument({ file, items, model, signal }) {
   const { url = '/api/doc-scan' } = config().docScan || {};

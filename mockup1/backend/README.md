@@ -1,4 +1,4 @@
-# mockup1 server — document scan
+# mockup1 backend — document scan and diagnostic pathways
 
 Optional FastAPI backend for the prototype. It serves the static prototype and adds `POST /api/doc-scan`, used by
 `<doc-gap-scan>` on the GP screen. The endpoint takes an uploaded PDF or DOCX and asks an LLM which steps of the case's
@@ -7,9 +7,9 @@ each quote against the document text. Nothing is written to the case until the d
 
 ```bash
 cd mockup1
-python3 -m venv .venv && .venv/bin/pip install -r server/requirements.txt   # or reuse the repo venv (../.venv)
+python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt   # or: scripts/setup.sh
 echo "<api key>" > einfracz.key                                             # gitignored (*.key), never served
-.venv/bin/uvicorn server.app:app --port 8000                                # open http://localhost:8000/#/gp
+.venv/bin/uvicorn backend.app:app --port 8000                                # open http://localhost:8000/#/gp
 ```
 
 - LLM: the e-INFRA CZ OpenAI-compatible endpoint `https://llm.ai.e-infra.cz/v1`, models `glm-5.3-flash` and
@@ -23,14 +23,27 @@ echo "<api key>" > einfracz.key                                             # gi
   It returns `{file: {name, kind, pages, chars}, excerpt, results: [{model, ms, usage, document, items: [{id, found,
   value, quote, verified, facts}]}]}`.
 - `GET /api/doc-scan/models` returns the configured models and whether a key is present.
-- The static route never serves `*.key`, `*.py`, dotfiles or `server/`. **Do not serve mockup1 with
+- The static route never serves `*.key`, `*.py`, dotfiles, `backend/` or `node_modules/`. **Do not serve mockup1 with
   `python3 -m http.server` while `einfracz.key` is in the folder: that server would hand the key out.**
 - PDFs without a text layer (scans) are rejected; OCR is not implemented.
+
+## Diagnostic pathways from Neo4j
+
+`GET /api/dx-pathways` and `GET /api/dx-pathways/{code}` serve the diagnostic pathways stored in Neo4j by
+`dx_graph.py` (byte-identical to `seed/pathways/diagnostic/*.json`). Setup, graph model and queries are in
+`README_pathway.md`. In short, from `mockup1/`:
+
+```bash
+scripts/setup.sh && scripts/services.sh start
+.venv/bin/python -m backend.dx_graph import seed/pathways/diagnostic/*.json
+```
+
+## Model comparison
 
 Model comparison from the command line, using the same prompt and checks:
 
 ```bash
-.venv/bin/python -m server.docscan data/demo/ambulantni-zprava-novak.pdf \
+.venv/bin/python -m backend.docscan data/demo/ambulantni-zprava-novak.pdf \
   --steps prior_reports,bloods,ca19_9,performance_status,ct_pancreas,histology --runs 2 [--json out.json]
 ```
 

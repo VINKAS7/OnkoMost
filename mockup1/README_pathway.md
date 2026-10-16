@@ -35,7 +35,7 @@ Copy the folder `components/onco-dx-pathway/` anywhere on a web server and use i
 </script>
 ```
 
-Serve the page over HTTP (`python3 -m http.server`), because `file://` cannot `fetch` the JSON. A working playground is `components/onco-dx-pathway/demo.html`. It lets you pick a pathway, mode and language, edit the state by clicking, and watch the state JSON and the events. Open `http://localhost:8000/components/onco-dx-pathway/demo.html`. Query parameters override the defaults, for example `demo.html?src=http://localhost:8000/api/dx-pathways/ovary&mode=compact&lang=en`.
+Serve the page over HTTP (`python3 -m http.server`), because `file://` cannot `fetch` the JSON. A working playground is `components/onco-dx-pathway/demo.html`. It lets you pick a pathway, mode and language, edit the state by clicking, and watch the state JSON and the events. Open `http://localhost:8000/components/onco-dx-pathway/demo.html`. Query parameters override the defaults, for example `demo.html?src=/api/dx-pathways/ovary&mode=compact&lang=en` (needs the backend described below).
 
 ## Files
 
@@ -54,7 +54,7 @@ The folder imports nothing from the prototype, so it can be copied into another 
 
 | Attribute | Values | Meaning |
 |---|---|---|
-| `src` | URL | The pathway JSON to load: a file such as `data/dx-pathway-pancreas.json`, or the Neo4j-backed API `http://localhost:8000/api/dx-pathways/pancreas`. Changing it reloads the pathway. A response of the form `{ "pathway": {…} }` is unwrapped. |
+| `src` | URL | The pathway JSON to load: a file such as `data/dx-pathway-pancreas.json`, or the Neo4j-backed API `/api/dx-pathways/pancreas`. Changing it reloads the pathway. A response of the form `{ "pathway": {…} }` is unwrapped. |
 | `state-src` | URL | Optional. Loads the case state from JSON, either `{nodes, decisions, facts}` or `{state: {…}, provenance: {…}}`. |
 | `mode` | `full` (default), `compact`, `gp` | `full` shows the gap chips, the chart, the supportive-care chips and the legend. `compact` (for the MDT) shows progress, gaps, conflicts and the decisions that belong to the board, with the chart behind a "show full pathway" button. `gp` (for the referring doctor) shows only progress and what the cancer centre arranges itself. Steps with `owner_role: "gp"` or `suppliable_by: ["gp"]` are left out of that list. |
 | `lang` | `cs` (default), `en` | UI language. Uses `label_en`, `name_en` and branch `label_en` when they exist. |
@@ -108,7 +108,7 @@ The element reads the prototype's theme tokens when they exist, and falls back t
 
 ## Pathway JSON (the structure)
 
-The pathways live in `seed/pathways/diagnostic/*.json`, with a full description in that folder's `README.md`. In short:
+The pathways live in `seed/pathways/diagnostic/*.json` (in this folder), with a full description in that folder's `README.md`. In short:
 
 ```jsonc
 {
@@ -147,17 +147,21 @@ npm run export:mockup     # engine.ts → components/onco-dx-pathway/engine.js; 
 
 ## Structure from Neo4j
 
-The same JSON can be stored as a graph in the shared Neo4j and served by the backend. The element then needs only `src="…/api/dx-pathways/<code>"`.
+The same JSON can be stored as a graph in the shared Neo4j and served by the prototype's backend (`backend/` in this folder). The element then needs only `src="/api/dx-pathways/<code>"`.
 
 ### Setup
 
+All commands run from `mockup1/`:
+
 ```bash
-scripts/setup.sh                 # venv + requirements + backend/.env (once)
-scripts/services.sh start        # Neo4j container onkomost-neo4j (+ Ollama)
-.venv/bin/python -m backend.pathway.dx_graph import seed/pathways/diagnostic/*.json
-.venv/bin/python -m backend.pathway.dx_graph list
-.venv/bin/uvicorn backend.api:app --port 8000          # GET /api/dx-pathways, /api/dx-pathways/{code}
+scripts/setup.sh                 # .venv + backend/requirements.txt + backend/.env (once)
+scripts/services.sh start        # Neo4j container onkomost-neo4j (password from backend/.env)
+.venv/bin/python -m backend.dx_graph import seed/pathways/diagnostic/*.json
+.venv/bin/python -m backend.dx_graph list
+.venv/bin/uvicorn backend.app:app --port 8000          # prototype + GET /api/dx-pathways, /api/dx-pathways/{code}
 ```
+
+The connection settings (`NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`) come from the environment or `backend/.env`. If an `onkomost-neo4j` container already exists, put its password there.
 
 Other commands:
 
@@ -166,7 +170,7 @@ Other commands:
 
 Importing a pathway replaces it completely, in one transaction.
 
-The backend allows CORS for `localhost:5173` (the frontend) and `localhost:3000`. If both run on one machine, serve the static prototype on port 3000 (`python3 -m http.server 3000`), because uvicorn takes port 8000. Then use `src="http://localhost:8000/api/dx-pathways/pancreas"`.
+The backend serves the prototype and the API from the same origin, so no CORS is needed: `src="/api/dx-pathways/pancreas"`. If Neo4j is not running, the endpoints answer 503.
 
 ### Graph model
 
@@ -199,7 +203,7 @@ MATCH (s:Onk:OnkDxStep)-[:USES_FACT]->(:Onk:OnkDxFact {_pathway:'pancreas', _nam
 MATCH p = (:Onk:OnkDxStep {_pathway:'pancreas', id:'ct_pancreas'})-[:NEXT*]->(x) RETURN p;
 ```
 
-In Python, `from backend.pathway.dx_graph import import_dx_pathway, export_dx_pathway, list_dx_pathways` gives the same functions. Each takes an optional `store` (default `backend.graph.store.graph`).
+In Python (from `mockup1/`), `from backend.dx_graph import import_dx_pathway, export_dx_pathway, list_dx_pathways` gives the same functions. Each takes an optional `store` (default: a `Neo4jStore` built from the settings above).
 
 ## Use in this prototype
 

@@ -1,11 +1,13 @@
-"""Small backend for the mockup1 prototype: serves the static prototype and scans uploaded documents with an LLM.
+"""Small backend for the mockup1 prototype: serves the static prototype, scans uploaded documents with an LLM and
+serves the diagnostic pathways stored in Neo4j.
 
-Run from mockup1/ (needs the repo venv: scripts/setup.sh, or pip install -r requirements.txt):
+Run from mockup1/ (needs mockup1/.venv: scripts/setup.sh, or pip install -r backend/requirements.txt):
 
-    ../.venv/bin/uvicorn server.app:app --port 8000      # then open http://localhost:8000/#/gp
+    .venv/bin/uvicorn backend.app:app --port 8000      # then open http://localhost:8000/#/gp
 
 POST /api/doc-scan     multipart: file (PDF/DOCX/TXT), items (JSON list of open pathway steps), models (comma list)
 GET  /api/doc-scan/models
+GET  /api/dx-pathways, /api/dx-pathways/{code}   diagnostic pathways from Neo4j (import: python -m backend.dx_graph)
 The API key is read from mockup1/einfracz.key (or EINFRA_API_KEY) and is never served.
 """
 from __future__ import annotations
@@ -17,7 +19,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-from server import docscan
+from backend import docscan, dx_graph
 
 ROOT = Path(__file__).resolve().parent.parent  # mockup1/
 MAX_BYTES = 15 * 1024 * 1024
@@ -53,6 +55,33 @@ async def doc_scan(file: UploadFile = File(...), items: str = Form(...), models:
         raise HTTPException(422, str(e))
 
 
+# --- diagnostic pathways from Neo4j (read by <onco-dx-pathway src="/api/dx-pathways/<code>">) -----------------------
+
+def _neo4j(fn, *args):
+    try:
+        return fn(*args)
+    except ImportError:
+        raise HTTPException(503, "Python balík neo4j není nainstalován (pip install -r backend/requirements.txt)")
+    except Exception as e:  # driver errors: service unavailable, auth, …
+        if type(e).__module__.startswith("neo4j"):
+            raise HTTPException(503, f"Neo4j nedostupná: {type(e).__name__} (scripts/services.sh start)")
+        raise
+
+
+@app.get("/api/dx-pathways")
+def dx_pathways():
+    return _neo4j(dx_graph.list_dx_pathways)
+
+
+@app.get("/api/dx-pathways/{code}")
+def dx_pathway(code: str):
+    p = _neo4j(dx_graph.export_dx_pathway, code)
+    if p is None:
+        raise HTTPException(404, f"diagnostická cesta {code!r} v Neo4j není "
+                                 "(.venv/bin/python -m backend.dx_graph import seed/pathways/diagnostic/*.json)")
+    return p
+
+
 # --- static prototype (same origin as the API) ---------------------------------------------------------------------
 
 BLOCKED_SUFFIXES = {".key", ".env", ".pem", ".py", ".pyc"}
@@ -62,7 +91,7 @@ BLOCKED_SUFFIXES = {".key", ".env", ".pem", ".py", ".pyc"}
 def static(path: str):
     target = (ROOT / (path or "index.html")).resolve()
     if (ROOT not in target.parents and target != ROOT) or target.suffix in BLOCKED_SUFFIXES \
-            or any(p.startswith(".") or p in ("server", "__pycache__") for p in target.relative_to(ROOT).parts):
+            or any(p.startswith(".") or p in ("backend", "__pycache__", "node_modules") for p in target.relative_to(ROOT).parts):
         raise HTTPException(404)
     if target.is_dir():
         target = target / "index.html"

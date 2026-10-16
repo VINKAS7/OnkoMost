@@ -8,7 +8,7 @@ import { acceptDocFinding, removeDocFinding } from './lib/actions.js';
 import { caseState } from './lib/dx-case-state.js';
 import { evaluate } from './onco-dx-pathway/engine.js';
 
-// GP screen: upload a PDF / DOCX and let an LLM (server path, mockup1/server → e-INFRA CZ) say which still-missing
+// GP screen: upload a PDF / DOCX and let an LLM (server path, mockup1/backend → e-INFRA CZ) say which still-missing
 // steps of the case's diagnostic pathway the document documents. One model, or both side by side for comparison.
 // The server checks every quote against the document text; nothing is written to the case until the doctor
 // confirms an item ("AI only drafts, a human confirms").
@@ -222,7 +222,7 @@ class DocGapScan extends KocElement {
           <div class="status">${runs.map((r) => r.pending ? html`<span class="pill ai">${r.model.label} čte dokument…</span>`
             : r.error ? html`<span class="pill warn">${r.model.label}: ${r.error}</span>`
             : html`<span class="pill">${r.model.label} · ${sec(r.result.ms)}</span>`)}</div>
-          ${runs.some((r) => r.error && /backend|statick/.test(r.error)) ? html`<p class="note err">${icon('server')}<span>Skenování potřebuje backend prototypu: v <span class="mono">mockup1/</span> spusťte <span class="mono">../.venv/bin/uvicorn server.app:app --port 8000</span> a otevřete <span class="mono">http://localhost:8000</span>.</span></p>` : ''}
+          ${runs.some((r) => r.error && /backend|statick/.test(r.error)) ? html`<p class="note err">${icon('server')}<span>Skenování potřebuje backend prototypu: v <span class="mono">mockup1/</span> spusťte <span class="mono">.venv/bin/uvicorn backend.app:app --port 8000</span> a otevřete <span class="mono">http://localhost:8000</span>.</span></p>` : ''}
           ${busy && !runs.some((r) => r.result) ? html`<div class="skeleton" style="margin-top:10px"><span></span><span></span><span></span></div>` : ''}
           ${runs.some((r) => r.result) ? html`
             <ul class="items" aria-label="Nálezy v dokumentu">

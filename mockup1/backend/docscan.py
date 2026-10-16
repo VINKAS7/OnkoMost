@@ -5,7 +5,7 @@ OpenAI-compatible endpoint answers which of them the document documents, with a 
 Every answer is then checked here: unknown ids are dropped, fact values must match the pathway's fact type, and the
 quote must really occur in the document text ("verified"). The result is only a draft; the doctor confirms each item.
 
-CLI (from mockup1/):  ../.venv/bin/python -m server.docscan data/demo/ambulantni-zprava-novak.pdf \
+CLI (from mockup1/):  .venv/bin/python -m backend.docscan data/demo/ambulantni-zprava-novak.pdf \
                           --steps prior_reports,bloods,ca19_9,performance_status,ct_pancreas,histology --runs 3
 """
 from __future__ import annotations
@@ -253,7 +253,7 @@ def items_from_pathway(pathway: dict, step_ids: list[str]) -> list[dict]:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m server.docscan", description="Compare models on one document.")
+    ap = argparse.ArgumentParser(prog="python -m backend.docscan", description="Compare models on one document.")
     ap.add_argument("file", type=Path)
     ap.add_argument("--pathway", type=Path, default=HERE.parent / "data" / "dx-pathway-pancreas.json")
     ap.add_argument("--steps", required=True, help="comma-separated pathway step ids")
