@@ -42,6 +42,7 @@ def _chat(messages: list[dict], fmt: dict | None, num_predict: int = 1024) -> st
         "model": settings.medgemma_model,
         "messages": messages,
         "stream": False,
+        "think": False,
         "options": {"temperature": 0, "num_ctx": 4096, "num_predict": num_predict, "seed": 7},
     }
     if fmt is not None:

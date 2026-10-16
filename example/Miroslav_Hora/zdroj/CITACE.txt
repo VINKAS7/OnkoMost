@@ -1,0 +1,20 @@
+Miroslav Hora (fiktivní jméno) – dlaždicobuněčný karcinom pravého horního laloku plíce
+
+Zdroj klinických údajů (skutečný, anonymizovaný pacient z publikované kazuistiky):
+  Kermenli T, Azar C. Upper Lobectomy with Video-assisted Thoracoscopic Surgery in a Patient with Azygos Lobe,
+  Lung Cancer and Emphysematous Lung. Respiratory Case Reports 2021;10(2):119–121.
+  https://doi.org/10.5505/respircase.2021.57431
+  Soubor: Kermenli_Azar_2021_RespirCaseRep_10-2-119.pdf (open access; licence v PDF neuvedena)
+
+Z článku: 55letý muž, CHOPN a emfyzém; RTG – suspektní okrsek v hilu pravého horního laloku, azygový lalok;
+CT – ložisko 30 × 35 mm se spikulovanou konturou u bronchu horního laloku; EBUS biopsie – dlaždicobuněčný karcinom;
+PET-CT – 30 × 39 mm, SUVmax 13,8, bez dalších nálezů; MR mozku – bez metastáz; FEV1 2180 ml (72 %),
+FEV1/FVC 68 %, 6MWT cca 460 m; VATS lobektomie pravého horního laloku + mediastinální lymfadenektomie;
+histologie resekátu 25 × 20 mm, metastáza v hilové uzlině, uzliny 2, 4, 7, 8, 9 negativní; adjuvantní chemoterapie.
+
+Vymyšleno pro demo (článek je neuvádí): jméno, RČ 710423/1035, pojišťovna, pracoviště, lékaři a všechna data.
+
+CT (ct/LUNG1-004_CT_DICOM): jiný, anonymní pacient se stejným typem nádoru (dlaždicobuněčný karcinom, T2 N1 M0,
+stadium II, muž 71 let) – pouze ilustrační, NENÍ to CT tohoto pacienta.
+  Aerts HJWL et al. Data From NSCLC-Radiomics. The Cancer Imaging Archive 2014.
+  https://doi.org/10.7937/K9/TCIA.2015.PF0M9REI – licence CC BY-NC 3.0 (viz soubor LICENSE)

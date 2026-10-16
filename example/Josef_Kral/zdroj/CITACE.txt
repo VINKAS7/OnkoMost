@@ -1,0 +1,23 @@
+Josef Král (fiktivní jméno) – adenokarcinom pravého horního laloku plíce se solitární metastázou v mozku
+
+Zdroj klinických údajů (skutečný, anonymizovaný pacient z publikované kazuistiky):
+  Tajiri T, Sekihara K, Shibata M, Hayakawa T, Kawase A, Shiiya N, Funai K. A case of complete pathological
+  response after comprehensive treatment in a patient with pulmonary adenocarcinoma with synchronous solitary
+  brain metastasis. Respiratory Medicine Case Reports 2024;50:102060.
+  https://doi.org/10.1016/j.rmcr.2024.102060 – https://pmc.ncbi.nlm.nih.gov/articles/PMC11220513/
+  Soubor: Tajiri_2024_RespirMedCaseRep_50-102060.pdf – licence CC BY-NC-ND (lze sdílet beze změn, nekomerčně)
+
+Z článku: 71letý muž, kuřák (18 cigaret denně, 51 let), kognitivní porucha a levostranné oslabení;
+MR mozku – solitární tumor pravého frontálního laloku 25 × 20 mm s perifokálním edémem; CT hrudníku – lobulovaný
+uzel 15 × 13 mm v periferii pravého horního laloku (S1); PET SUVmax 4,3; cT1b N0 M1b (IVA); resekce metastázy
++ IMRT 50 Gy/25 frakcí; histologie – metastáza adenokarcinomu plic, CK7 100 %, TTF-1 a Napsin A 100 %,
+PD-L1 TPS 75 %, bez driver mutací; poté 4 cykly karboplatina + pemetrexed + atezolizumab (částečná odpověď,
+uzel 11 × 6 mm, SUVmax 1,2), robotická lobektomie – kompletní patologická odpověď (ypT0N0M1b),
+udržovací atezolizumab, po 1 roce bez recidivy.
+
+Vymyšleno pro demo (článek je neuvádí): jméno, RČ 550814/1023, pojišťovna, pracoviště, lékaři a všechna data.
+
+CT (ct/LUNG1-131_CT_DICOM): jiný, anonymní pacient se stejným typem nádoru (adenokarcinom, T1 N0, stadium I,
+muž 71 let) – pouze ilustrační, NENÍ to CT tohoto pacienta.
+  Aerts HJWL et al. Data From NSCLC-Radiomics. The Cancer Imaging Archive 2014.
+  https://doi.org/10.7937/K9/TCIA.2015.PF0M9REI – licence CC BY-NC 3.0 (viz soubor LICENSE)
