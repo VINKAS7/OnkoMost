@@ -194,6 +194,8 @@ The element carries its own styles and reads these CSS custom properties from th
 ```css
 --tumor  #C62828;  --tumor-soft  #F4B4AE;     /* red layer */
 --drug   #1B57AE;  --drug-soft   #E3EDFB;     /* blue layer */
+--organ-opacity      .3;   /* fill opacity of uncoloured organs */
+--highlight-opacity  .6;   /* fill opacity of red / blue organs; outlines stay opaque */
 --ink, --muted, --line, --line-strong, --surface, --bg, --accent, --accent-soft,
 --ok, --ok-soft, --warn, --warn-soft, --miss, --miss-soft,
 --font-sans, --font-mono, --radius-card, --radius-ctl

@@ -65,13 +65,17 @@ figure svg { display: block; width: 100%; height: auto; max-height: 560px; }
 figcaption { font-size: 12px; color: var(--_muted); margin-top: 6px; }
 #LAYER_OUTLINE path { fill: #fff; stroke: #A3A9AF; stroke-width: .35; }
 #LAYER_OUTLINE > a { display: none; } /* EBI info link icon; the body is a <path> (male) or <g> (female) */
-#LAYER_EFO > *, #LAYER_EFO > * * { fill: #DDE0E3 !important; stroke: #A3A9AF !important; stroke-width: .2 !important; }
+/* Organs are see-through so organs drawn behind others (pancreas, duodenum, kidneys) stay visible. */
+#LAYER_EFO > *, #LAYER_EFO > * * { fill: #C9CED3 !important; fill-opacity: var(--organ-opacity, .3) !important;
+  stroke: #8F969D !important; stroke-opacity: .8 !important; stroke-width: .2 !important; }
 .legend { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; }
 .legend span { display: flex; gap: 8px; align-items: center; }
 .sw { width: 14px; height: 14px; border-radius: 4px; flex: none; border: 1.5px solid transparent; }
-.sw.t { background: var(--_tumor); } .sw.p { background: var(--_tumor-soft); border: 1.5px dashed var(--_tumor); }
-.sw.r { background: #DDE0E3; border: 1.5px dashed var(--_tumor); } .sw.d { background: var(--_drug); }
-.sw.td { background: var(--_tumor); border: 2.5px solid var(--_drug); }
+.sw { position: relative; overflow: hidden; }
+.sw::before { content: ''; position: absolute; inset: 0; opacity: var(--highlight-opacity, .6); }
+.sw.t::before, .sw.td::before { background: var(--_tumor); } .sw.p::before { background: var(--_tumor-soft); } .sw.d::before { background: var(--_drug); }
+.sw.r::before { background: #C9CED3; opacity: var(--organ-opacity, .3); }
+.sw.p, .sw.r { border: 1.5px dashed var(--_tumor); } .sw.td { border: 2.5px solid var(--_drug); }
 .group + .group { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--_line); }
 .group h3 { margin: 4px 0 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .organ { display: grid; gap: 4px; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-radius: var(--radius-ctl, 8px);
@@ -291,7 +295,7 @@ class OncoAnatomogram extends HTMLElement {
       const [id, part] = o.key.split(':');
       // Two ids so these beat the base organ rule in the adopted stylesheet (adopted sheets cascade later).
       const el = `#LAYER_EFO #${id}${part ? ` > path:nth-of-type(${part})` : ''}`;
-      rules.push(`${el}, ${el} * { ${fill ? `fill: ${fill} !important;` : ''} ${stroke ? `stroke: ${stroke} !important; stroke-width: ${width} !important;` : ''} stroke-dasharray: ${dash || 'none'} !important; cursor: pointer; }`);
+      rules.push(`${el}, ${el} * { ${fill ? `fill: ${fill} !important; fill-opacity: var(--highlight-opacity, .6) !important;` : ''} ${stroke ? `stroke: ${stroke} !important; stroke-opacity: 1 !important; stroke-width: ${width} !important;` : ''} stroke-dasharray: ${dash || 'none'} !important; cursor: pointer; }`);
     }
     return rules.join('\n');
   }
