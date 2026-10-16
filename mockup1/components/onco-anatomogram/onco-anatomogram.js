@@ -8,7 +8,7 @@
 // and lists shared-actor drug-interaction candidates. Rule-based, no LLM.
 // Documentation: README.md here (quick start) and README_anatomogram.md in the prototype root.
 import { openDb, resolveDrugs, computeAdme, DEFAULT_DB, DEFAULT_SQL_WASM } from './adme.js';
-import { STRINGS, LEVELS, PROCESSES, ORGANS, TISSUES_CS, TISSUE_PROXY } from './i18n.js';
+import { STRINGS, LEVELS, PROCESSES, ORGANS, WHOLE_BODY, TISSUES_CS, TISSUE_PROXY } from './i18n.js';
 
 const HERE = new URL('.', import.meta.url);
 const DEFAULT_ZOOM = { male: '30 46 46 56', female: '28 46 50 60' };
@@ -65,9 +65,11 @@ figure svg { display: block; width: 100%; height: auto; max-height: 560px; }
 figcaption { font-size: 12px; color: var(--_muted); margin-top: 6px; }
 #LAYER_OUTLINE path { fill: #fff; stroke: #A3A9AF; stroke-width: .35; }
 #LAYER_OUTLINE > a { display: none; } /* EBI info link icon; the body is a <path> (male) or <g> (female) */
-/* Organs are see-through so organs drawn behind others (pancreas, duodenum, kidneys) stay visible. */
-#LAYER_EFO > *, #LAYER_EFO > * * { fill: #C9CED3 !important; fill-opacity: var(--organ-opacity, .3) !important;
-  stroke: #8F969D !important; stroke-opacity: .8 !important; stroke-width: .2 !important; }
+/* Uninvolved organs are very light and see-through, so organs drawn behind others stay visible. */
+#LAYER_EFO > *, #LAYER_EFO > * * { fill: #C9CED3 !important; fill-opacity: var(--organ-opacity, .14) !important;
+  stroke: #8F969D !important; stroke-opacity: var(--organ-line-opacity, .4) !important; stroke-width: .15 !important; }
+${[...WHOLE_BODY].map((id) => `#LAYER_EFO > #${id}, #LAYER_EFO > #${id} *`).join(', ')} {
+  fill-opacity: var(--tissue-opacity, .05) !important; stroke-opacity: var(--tissue-line-opacity, .3) !important; }
 .legend { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; }
 .legend span { display: flex; gap: 8px; align-items: center; }
 .sw { width: 14px; height: 14px; border-radius: 4px; flex: none; border: 1.5px solid transparent; }
@@ -293,9 +295,11 @@ class OncoAnatomogram extends HTMLElement {
       if (drug && (red || lvl === 'possible')) { stroke = 'var(--_drug)'; width = 0.9; dash = null; }
       if (o.key === this.ui.selected) { stroke = 'var(--ink, #18212B)'; width = 1.1; dash = null; }
       const [id, part] = o.key.split(':');
-      // Two ids so these beat the base organ rule in the adopted stylesheet (adopted sheets cascade later).
-      const el = `#LAYER_EFO #${id}${part ? ` > path:nth-of-type(${part})` : ''}`;
-      rules.push(`${el}, ${el} * { ${fill ? `fill: ${fill} !important; fill-opacity: var(--highlight-opacity, .6) !important;` : ''} ${stroke ? `stroke: ${stroke} !important; stroke-opacity: 1 !important; stroke-width: ${width} !important;` : ''} stroke-dasharray: ${dash || 'none'} !important; cursor: pointer; }`);
+      // "svg" + two ids so these beat the base organ / whole-body rules in the adopted stylesheet
+      // (adopted sheets cascade after the shadow root's own <style>).
+      const el = `svg #LAYER_EFO #${id}${part ? ` > path:nth-of-type(${part})` : ''}`;
+      const opacity = WHOLE_BODY.has(id) ? 'var(--tissue-highlight-opacity, .3)' : 'var(--highlight-opacity, .6)';
+      rules.push(`${el}, ${el} * { ${fill ? `fill: ${fill} !important; fill-opacity: ${opacity} !important;` : ''} ${stroke ? `stroke: ${stroke} !important; stroke-opacity: 1 !important; stroke-width: ${width} !important;` : ''} stroke-dasharray: ${dash || 'none'} !important; cursor: pointer; }`);
     }
     return rules.join('\n');
   }
@@ -418,6 +422,7 @@ class OncoAnatomogram extends HTMLElement {
       if (!organ) return;
       const path = e.target.closest('path');
       const keys = [...this.model().organs.keys()];
+      if (WHOLE_BODY.has(organ.id) && !keys.includes(organ.id)) return;
       const part = keys.find((k) => k.startsWith(`${organ.id}:`) && organ.querySelector(`:scope > path:nth-of-type(${k.split(':')[1]})`) === path);
       this.select(part || organ.id);
       return;
