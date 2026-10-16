@@ -14,10 +14,12 @@ export function computeMissing(c, tpl, audience = 'gp') {
       const value = f.valueKey ? c.values?.[f.valueKey] : null;
       let resolvedAt = null;
       let resolvedBy = null;
+      const doc = f.dxStep ? c.docFindings?.[f.dxStep] : null;
       if (value) { resolvedAt = value.at; resolvedBy = 'value'; }
+      else if (doc) { resolvedAt = doc.at; resolvedBy = 'document'; }
       else if (task?.status === 'done') { resolvedAt = task.doneAt; resolvedBy = 'task'; }
       else if (c.handover && new RegExp(f.pattern, 'i').test(text)) { resolvedAt = c.timeline.referral; resolvedBy = 'handover'; }
-      return { ...f, task, value, resolvedAt, resolvedBy };
+      return { ...f, task, value, doc, resolvedAt, resolvedBy };
     });
 }
 

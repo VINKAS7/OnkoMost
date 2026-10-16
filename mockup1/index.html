@@ -27,6 +27,13 @@
         'summarize-for-reviewer': 'mock',
         'draft-message': 'mock',
       },
+      // Document scan on the GP screen: mockup1/server (FastAPI) → e-INFRA CZ OpenAI-compatible endpoint.
+      // Start it with `../.venv/bin/uvicorn server.app:app --port 8000` in mockup1/ (it also serves this prototype).
+      docScan: {
+        url: '/api/doc-scan',
+        models: [{ id: 'glm-5.3-flash', label: 'GLM-5.3-flash' }, { id: 'qwen3.8-27b', label: 'Qwen3.8-27B' }],
+        demoFile: 'data/demo/ambulantni-zprava-novak.pdf',
+      },
       llmProviders: {
         'openai-compatible': { baseUrl: 'http://localhost:8000', model: 'qwen2.5-7b-instruct', apiKey: '' },
         webllm: { model: 'Qwen2.5-7B-Instruct-q4f16_1-MLC' },

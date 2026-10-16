@@ -6,7 +6,7 @@ const COMPONENTS = [
   'app-header', 'case-tracker', 'tt-bar', 'demo-reset',
   'referral-form', 'doc-sources', 'fhir-picker', 'doc-dropzone', 'handover-panel', 'missing-list', 'confirm-send', 'gp-feedback',
   'kpi-strip', 'case-queue', 'case-header', 'task-plan', 'mdt-upload', 'msg-thread',
-  'mdt-anatomogram', 'case-picker',
+  'mdt-anatomogram', 'case-picker', 'dx-pathway', 'doc-gap-scan',
   'closed-list', 'indicator-tiles', 'case-summary', 'case-timeline', 'doc-list', 'review-question',
 ];
 

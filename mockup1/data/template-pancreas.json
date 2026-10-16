@@ -5,18 +5,18 @@
   "targets": { "t2": 14, "t3": 14 },
   "requiredFields": [
     { "id": "ct", "label": "CT břicha s kontrastem (pankreatický protokol)", "shortLabel": "CT břicha",
-      "severity": "blocks-mdt", "pattern": "\\bCT\\b", "resolvedByTask": "ct",
+      "severity": "blocks-mdt", "pattern": "\\bCT\\b", "resolvedByTask": "ct", "dxStep": "ct_pancreas",
       "gpNote": "Zajistí KOC · nemusíte objednávat" },
     { "id": "histology", "label": "Histologie / cytologie", "shortLabel": "Histologie",
-      "severity": "blocks-mdt", "pattern": "histolog|cytolog", "resolvedByTask": "histology",
+      "severity": "blocks-mdt", "pattern": "histolog|cytolog", "resolvedByTask": "histology", "dxStep": "histology",
       "gpNote": "Zajistí KOC (ERCP / EUS)" },
     { "id": "ecog", "label": "Výkonnostní stav (ECOG)", "shortLabel": "ECOG",
-      "severity": "gp", "pattern": "\\bECOG\\b", "valueKey": "ecog",
+      "severity": "gp", "pattern": "\\bECOG\\b", "valueKey": "ecog", "dxStep": "performance_status",
       "gpNote": "Stačí vybrat hodnotu 0–4" },
     { "id": "markers", "label": "CA 19-9", "severity": "recommended", "pattern": "CA ?19-9",
-      "resolvedByTask": "markers", "group": "labs-extra" },
+      "resolvedByTask": "markers", "dxStep": "ca19_9", "group": "labs-extra" },
     { "id": "basic-labs", "label": "krevní obraz, koagulace", "severity": "recommended", "pattern": "krevní obraz",
-      "resolvedByTask": "hospital", "group": "labs-extra" }
+      "resolvedByTask": "hospital", "dxStep": "bloods", "group": "labs-extra" }
   ],
   "groups": {
     "labs-extra": { "label": "CA 19-9, krevní obraz, koagulace", "gpNote": "Pokud máte, přiložte · jinak doplní KOC" }
