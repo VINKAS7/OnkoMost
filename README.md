@@ -14,7 +14,7 @@ Built for the Rakathon 2026 challenge *"Cesta pacienta bez ztráty informací"* 
 |---|---|---|
 | 🩺 **Referring doctor** (`/gp`) | GP or specialist | Enters only the **patient's name, birth number (RČ) and suspected cancer type**, picks a KOC and uploads the documents they already have. Later sees the case status, the MDT result, and confirms receipt. |
 | 🏥 **Cancer centre – KOC** (`/koc`) | Coordinator | Sees each patient **on the pathway for their cancer type** (React Flow). Every step that needs a document is **green** (we have it), **red** (missing) or **yellow** (conflict between documents). Also: next steps with owners and deadlines, handover, documents, Neo4j graph, sending the result, and **voting on pathway changes**. |
-| ⚕️ **MDT meeting** (`/mdt`) | Multidisciplinary team | Case brief, warnings, **"Ask the case" (GraphRAG)** with cited sources, a sidebar of **original documents to download**, and the **decision to treat**: active monitoring / palliative care / chemotherapy / radiotherapy / surgery (more than one can be chosen). |
+| ⚕️ **MDT meeting** (`/mdt`) | Multidisciplinary team | A **body map** (organs affected by the cancer, read by MedGemma from the reports), case brief, warnings, **"Ask the case" (GraphRAG)** with cited sources, a sidebar of **original documents to download**, and the **decision to treat**: active monitoring / palliative care / chemotherapy / radiotherapy / surgery (more than one can be chosen). |
 
 The whole UI switches between **English and Czech** (EN | CS in the sidebar). The design is minimal: no icons or emoji, status shown as small coloured dots.
 
@@ -56,6 +56,26 @@ Sent → In triage → Waiting for documents → Complete → Ready for MDT → 
 | 04 Result to the referring doctor with the original context; review doctor informed automatically and can ask for more; confirm and close (slide 11) | Case → MDT & result; GP confirms in `/gp`; the review doctor's link has "Request more information"; K2 handover closes the case |
 | Structured KOC / MDT conclusion (slide 12) | MDT workspace decision → **final MDT record** (MDT_zapis .docx with 6 "Závěr MDT" and 7 "Doporučení MDT" filled) attached to the GP's message |
 | Zadání: MDT report as of 21. 10. 2026 (later reports excluded), send to the GP with proof of delivery | MDT briefing / final record, receipt link |
+
+### MDT body map
+
+The MDT workspace opens with a body map on the left. It uses the [EBI Expression Atlas anatomogram](https://github.com/gxa/anatomogram) (CC BY 4.0), and the backend code is in `backend/reports/bodymap.py`.
+
+1. **Read the reports.** All reports dated on or before the MDT date are read, the same cut-off as the brief and GraphRAG. Labs, pain and psychology reports are skipped.
+2. **Extract.** MedGemma lists, for each report section, the organs with a finding. Each finding has an organ from a fixed list, a status (*primary tumour, metastasis, involved, suspicious, examined negative*) and a verbatim Czech quote.
+3. **Verify.** A finding is kept only when all of these hold:
+   - Its quote is in the report.
+   - The quote names the organ. If the model filed it under the wrong organ, the quote decides which organ it belongs to.
+   - A "negative" quote actually reads as negative.
+4. **Merge.** There is one entry per organ, and the most severe status wins. When reports disagree about an organ, it is flagged as a **conflict**.
+5. **Fallback.** The organ of the case's pathway (lung, pancreas, colon/rectum, breast) is always shown, marked "from the referral diagnosis" when no report names it.
+
+Using the map:
+- The figure follows the patient's sex, taken from the RČ.
+- Clicking an organ **filters the brief and the document list** to the reports that mention it, and shows the quotes with D-links.
+- Hovering a report outlines the organs it describes.
+- Results are cached in `storage/bodymap/`, and re-run automatically when new reports arrive.
+- The first run takes a few minutes; after that it is instant.
 
 ### Cancer pathways (one per cancer type)
 
@@ -102,7 +122,7 @@ All commands run from this folder (`onkomost/`). On Windows use `conda run`, bec
 # 0. one-time setup
 cp backend/.env.example backend/.env            # then fill in NEO4J_PASSWORD (and NEO4J_URI if the WSL IP changed)
 ollama pull medgemma:4b                         # ~3.3 GB, local Ollama (not WSL)
-cd frontend && npm install && npm run build && cd ..
+cd frontend && npm install && npm run build && cd ..   # npm install also copies the anatomogram SVGs to public/
 
 # 1. check Neo4j, Ollama/MedGemma, SQLite and the sample data
 conda run -n Deep_Learning python -m backend.config --check
@@ -110,6 +130,8 @@ conda run -n Deep_Learning python -m backend.config --check
 # 2. load the sample case (pick where the story should stop)
 conda run -n Deep_Learning python -m scripts.seed_demo --until histology    # diagnostics done, conflicts open
 conda run -n Deep_Learning python -m scripts.seed_demo                      # whole story, ends closed
+# optional: three more fictional MDT patients (lung, colorectal with liver metastases, breast) + their body maps
+conda run -n Deep_Learning python -m scripts.seed_cancer_demos --bodymap
 
 # 3. start (serves the built UI too) → http://localhost:8000
 conda run -n Deep_Learning uvicorn backend.api:app --port 8000
@@ -129,7 +151,7 @@ It sets the **demo date** to the date of each event (the sample case happens in 
 conda run -n Deep_Learning python -m pytest tests -q
 ```
 
-There are 18 tests. Among other things they check:
+There are 24 tests. Among other things they check:
 - extraction rules
 - the RČ / identity check
 - missing reports found from the referral alone
@@ -144,6 +166,7 @@ There are 18 tests. Among other things they check:
 - a review-doctor question creates a high-priority coordinator task and appears in notifications
 - notifications list overdue tasks per centre
 - governance (3 of 6 yes → rejected, 4 of 6 → active, a running case keeps v1)
+- the body map's checks: a quote not in the report is dropped, the report's wording decides the organ, status and side ("HER2 negativní" does not make a carcinoma negative; "bez ložisek, bez metastáz" stays negative), the most severe status wins, conflicts are flagged only on the same side, the pathway organ is the fallback, sex from the RČ
 - **non-Onkomost Neo4j data is unchanged**
 
 The tests use their own SQLite file, but they rebuild the `:Onk` nodes in Neo4j. Re-run `seed_demo` afterwards.
@@ -164,6 +187,10 @@ The tests use their own SQLite file, but they rebuild the `:Onk` nodes in Neo4j.
    - Validate the **Handover** (sources marked AI were read by MedGemma), and generate the MDT briefing under **MDT & result**.
 4. **🗺️ Cancer pathways → Lung** – the flowchart from the brief, with the curative / non-radical / no-biopsy route.
 5. **⚕️ MDT → Alena**:
+   - The **body map**:
+     - the female figure, with the pancreas as the primary tumour, the mesenteric vessels involved, and a suspicious peripancreatic lymph node
+     - liver, lungs, kidneys, gallbladder and bones examined negative
+     - click *Pancreas*: the brief and documents narrow to the 4 reports that describe it
    - The case brief and warnings.
    - **Ask the case**, e.g. "What is the CA 19-9?" (answer with D-citations) or "Does she have brain metastases on MRI?" ("not in the documents").
    - Open source documents from the sidebar.
@@ -187,21 +214,23 @@ backend/
   pathway/               model (JSON + validation + diff), conformance (Cypher checks → green/red/yellow + findings),
                          governance (votes)
   reports/               handover (Handover_obsah, EN labels), mdt (MDT_zapis .docx + conclusion parsing + treatment
-                         suggestion), feedback (messages)
+                         suggestion), feedback (messages), bodymap (MedGemma organ findings for the MDT body map)
   workflow/              db (SQLAlchemy models, demo clock, audit), service (cases, tasks, decisions, states, actions)
 frontend/src/            React app: i18n.ts (EN/CS), pages/gp (GP portal), pages/koc (patients, case tabs, pathways,
                          editor, proposals, outbox), pages/mdt (meetings, workspace with GraphRAG + decision), AckPage
 seed/                    kocs.json (6 fictional KOCs), pathways/*.json (lung, pancreas, colorectal, breast)
 scripts/seed_demo.py     replays the Rakathon sample case day by day
+scripts/seed_cancer_demos.py  three more fictional MDT patients (lung, colorectal, breast)
 tests/                   pytest suite
-storage/                 raw/ (immutable originals), llm_cache/, reports/ (generated .docx)
+storage/                 raw/ (immutable originals), llm_cache/, reports/ (generated .docx), bodymap/ (body map results)
 ```
 
 ## Known limits (prototype)
 
 - **The pathways are drafts.** Lung follows the published flowchart; pancreas is derived from the sample case; colorectal and breast are skeletons. All must be checked by clinicians against the ČOS guidelines.
 - **No logins:** the workspace choice and the KOC switcher stand in for authentication. The GP sees "their" referrals by name. There are no real emails (Outbox) and no hospital-system integration.
-- **Only one sample patient exists** (pancreatic). The other pathways can be shown and used with your own test documents.
+- **Only one real sample patient exists** (pancreatic). `seed_cancer_demos` adds short synthetic lung, colorectal and breast cases for demonstration.
+- **The body map is coarse.** The anatomogram has one shape per organ: no lobes or lymph-node stations, and the vessel shape is the whole arterial tree. Sides are shown as text. Some organs are only drawn in one of the figures.
 - **MedGemma 4B is small and Czech is not its main language.** That's why rules come first, quotes are checked, citations are grounded deterministically, and every value is confirmed by a person. GraphRAG answers take ~10–20 s on an RTX 3060 (6 GB).
 - The ICD-10 code of the confirmed diagnosis is taken from the GP's suspected diagnosis and marked "to verify at MDT".
 - The Neo4j address is a WSL IP that can change after a reboot. Update `NEO4J_URI` in `backend/.env`.

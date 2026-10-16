@@ -144,3 +144,17 @@ export type Notification = {
   case_id: number; patient: string; task_id: number; title: string; title_en: string; kind: string;
   due_on: string | null; level: "overdue" | "due_soon" | "question"; owner_name: string; external: boolean;
 };
+
+export type BodyStatus = "primary" | "metastasis" | "involved" | "suspicious" | "negative";
+export type BodySite = {
+  organ: string; uberon: string[]; label: string; label_en: string; status: BodyStatus;
+  side: "left" | "right" | "both" | null; conflict: boolean; from_pathway: boolean;
+  evidence: { organ: string; status: BodyStatus; side: string | null; quote: string; match: string; doc_id: number;
+              title: string; date: string | null }[];
+};
+export type BodyMap = {
+  job: { status: "idle" | "running" | "done" | "error"; done: number; total: number; error: string };
+  result: { computed_on: string; cutoff: string; model: string; sex: string | null; pathway: string;
+            documents: { id: number; title: string; date: string | null }[]; sites: BodySite[] } | null;
+  stale: boolean; sex: "male" | "female" | null; pathway: string;
+};

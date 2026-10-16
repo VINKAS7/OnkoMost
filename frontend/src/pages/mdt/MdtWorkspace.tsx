@@ -6,6 +6,7 @@ import { useAction, useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
 import type { AskResult, CaseDetail, MdtImport, MdtReport } from "../../types";
 import { age } from "../koc/CasePage";
+import BodyMap, { type BodyFilter } from "./BodyMap";
 
 const TREATMENTS = ["active_monitoring", "palliative", "chemotherapy", "radiotherapy", "surgery"];
 
@@ -140,9 +141,12 @@ export default function MdtWorkspace() {
   const { t, pick } = useApp();
   const { data: c, reload } = useFetch<CaseDetail>(`/api/cases/${id}`);
   const { data: brief } = useFetch<MdtReport>(`/api/cases/${id}/mdt/brief`);
+  const [filter, setFilter] = useState<BodyFilter>(null);
+  const [hoverDoc, setHoverDoc] = useState<number | null>(null);
   if (!c) return <div className="page muted">{t("common.loading")}</div>;
   const conflicts = c.findings.filter((f) => f.kind === "mismatch" && !f.reviewed);
   const missing = c.pathway_graph.nodes.filter((n) => n.doc_status === "missing" && n.blocking !== false);
+  const shown = (docId: number | null) => !filter || (docId != null && filter.docIds.includes(docId));
 
   return (
     <div className="page wide" style={{ gap: 18 }}>
@@ -160,15 +164,18 @@ export default function MdtWorkspace() {
         <DocCounts counts={c.doc_counts} />
       </div>
 
-      <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 32 }}>
-        <div className="col" style={{ gap: 28 }}>
+      <div className="mdt-grid">
+        <aside className="mdt-body">
+          <BodyMap caseId={c.id} filter={filter} onFilter={setFilter} hoverDoc={hoverDoc} />
+        </aside>
+        <div className="col" style={{ gap: 28, minWidth: 0 }}>
           {brief && (
             <section>
               <div className="section-title">{t("mdt.brief")}</div>
               <div className="small" style={{ marginBottom: 6 }}><b>{brief.diagnosis.name}</b> <span className="muted">· {brief.diagnosis.icd10}</span></div>
               <table className="small"><tbody>
-                {brief.results.map((r, i) => (
-                  <tr key={i}>
+                {brief.results.filter((r) => shown(r.doc_id)).map((r, i) => (
+                  <tr key={i} onMouseEnter={() => setHoverDoc(r.doc_id)} onMouseLeave={() => setHoverDoc(null)}>
                     <td className="muted" style={{ whiteSpace: "nowrap", width: 90 }}>{fmtDate(r.date)}</td>
                     <td><span style={{ fontWeight: 550 }}>{r.exam.split(" (")[0]}</span><div className="muted">{r.result}</div></td>
                     <td style={{ width: 40 }}>{r.doc_id && <a className="cite" href={`/api/documents/${r.doc_id}/raw`}>D{r.doc_id}</a>}</td>
@@ -191,10 +198,10 @@ export default function MdtWorkspace() {
           <AskPanel c={c} />
           <DecisionPanel c={c} brief={brief} reload={reload} />
         </div>
-        <aside style={{ position: "sticky", top: 60, alignSelf: "start" }}>
+        <aside className="mdt-docs">
           <div className="section-title">{t("mdt.docs")}</div>
-          {c.documents.map((d) => (
-            <a key={d.id} href={`/api/documents/${d.id}/raw`} style={{ display: "block", padding: "7px 0", borderTop: "1px solid var(--line)", textDecoration: "none", color: "inherit", opacity: d.post_mdt ? 0.5 : 1 }}>
+          {c.documents.filter((d) => shown(d.id)).map((d) => (
+            <a key={d.id} href={`/api/documents/${d.id}/raw`} onMouseEnter={() => setHoverDoc(d.id)} onMouseLeave={() => setHoverDoc(null)} style={{ display: "block", padding: "7px 0", borderTop: "1px solid var(--line)", textDecoration: "none", color: "inherit", opacity: d.post_mdt ? 0.5 : 1 }}>
               <div className="small" style={{ fontWeight: 550 }}>{d.title || d.filename}</div>
               <div className="xs muted">D{d.id} · {fmtDate(d.doc_date)}{d.post_mdt ? ` · ${t("docs.afterMdt")}` : ""}</div>
             </a>

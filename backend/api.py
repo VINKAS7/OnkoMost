@@ -278,6 +278,19 @@ def mdt_brief(case_id: int):
         return ok(mdtr.build_report(c, c.koc, c.patient_uuid, cutoff, svc._entries(s, case_id)))
 
 
+@app.get("/api/cases/{case_id}/bodymap")
+def bodymap(case_id: int):
+    """Organs affected by the cancer, read by MedGemma from the reports up to the MDT date (see reports/bodymap.py)."""
+    from backend.reports import bodymap as bm
+    return ok(bm.status(case_id))
+
+
+@app.post("/api/cases/{case_id}/bodymap")
+def bodymap_run(case_id: int):
+    from backend.reports import bodymap as bm
+    return ok(bm.start(case_id))
+
+
 @app.get("/api/cases/{case_id}/mdt/report.docx")
 def mdt_report_docx(case_id: int):
     with session_scope() as s:
