@@ -71,29 +71,73 @@ export const PROCESSES = {
 
 /** Organs of the pruned drawings, keyed by element id. */
 export const ORGANS = {
+  // whole-body tissues
+  UBERON_0000014: { cs: 'kůže', en: 'skin' },
+  UBERON_0001013: { cs: 'tuková tkáň', en: 'adipose tissue' },
+  UBERON_0001134: { cs: 'kosterní svaly', en: 'skeletal muscle' },
+  UBERON_0002481: { cs: 'kosti', en: 'bone' },
+  UBERON_0007844: { cs: 'chrupavka', en: 'cartilage' },
+  UBERON_0002371: { cs: 'kostní dřeň', en: 'bone marrow' },
+  UBERON_0001021: { cs: 'nervy', en: 'nerves' },
+  UBERON_0002240: { cs: 'mícha', en: 'spinal cord' },
+  UBERON_0000178: { cs: 'krev a cévy', en: 'blood and vessels' },
+  UBERON_0000947: { cs: 'aorta', en: 'aorta' },
+  UBERON_0001135: { cs: 'hladká svalovina', en: 'smooth muscle' },
+  // head and neck
   UBERON_0000955: { cs: 'mozek', en: 'brain' },
+  UBERON_0000007: { cs: 'hypofýza', en: 'pituitary gland' },
+  UBERON_0000970: { cs: 'oči', en: 'eyes' },
+  UBERON_0001044: { cs: 'slinné žlázy', en: 'salivary glands' },
+  UBERON_0001831: { cs: 'příušní žláza', en: 'parotid gland' },
+  UBERON_0001736: { cs: 'podčelistní žláza', en: 'submandibular gland' },
+  UBERON_0002372: { cs: 'mandle', en: 'tonsils' },
+  UBERON_0002046: { cs: 'štítná žláza', en: 'thyroid gland' },
+  // chest
+  UBERON_0003126: { cs: 'průdušnice', en: 'trachea' },
+  UBERON_0002185: { cs: 'průdušky', en: 'bronchi' },
   UBERON_0001043: { cs: 'jícen', en: 'esophagus' },
   UBERON_0000977: { cs: 'pleura', en: 'pleura' },
   UBERON_0002048: { cs: 'plíce', en: 'lung' },
   UBERON_0000310: { cs: 'prsy', en: 'breast' },
   UBERON_0000948: { cs: 'srdce', en: 'heart' },
+  UBERON_0001103: { cs: 'bránice', en: 'diaphragm' },
+  // abdomen
   UBERON_0002107: { cs: 'játra', en: 'liver' },
   UBERON_0002106: { cs: 'slezina', en: 'spleen' },
   UBERON_0000945: { cs: 'žaludek', en: 'stomach' },
   UBERON_0001155: { cs: 'tlusté střevo', en: 'colon' },
+  UBERON_0001153: { cs: 'slepé střevo', en: 'caecum' },
+  UBERON_0001154: { cs: 'apendix', en: 'appendix' },
   UBERON_0002108: { cs: 'tenké střevo', en: 'small intestine' },
+  UBERON_0002116: { cs: 'ileum', en: 'ileum' },
+  UBERON_0001052: { cs: 'konečník', en: 'rectum' },
   UBERON_0001255: { cs: 'močový měchýř', en: 'urinary bladder' },
-  UBERON_0002367: { cs: 'prostata', en: 'prostate gland' },
   UBERON_0002113: { cs: 'ledviny', en: 'kidney' },
   UBERON_0002369: { cs: 'nadledviny', en: 'adrenal gland' },
   UBERON_0002110: { cs: 'žlučník a žlučové cesty', en: 'gall bladder and bile ducts' },
   UBERON_0002114: { cs: 'duodenum', en: 'duodenum' },
   UBERON_0001264: { cs: 'pankreas', en: 'pancreas' },
   UBERON_0000029: { cs: 'lymfatické uzliny', en: 'lymph nodes' },
+  // reproductive organs
+  UBERON_0002367: { cs: 'prostata', en: 'prostate gland' },
+  UBERON_0000998: { cs: 'semenné váčky', en: 'seminal vesicles' },
+  UBERON_0001000: { cs: 'chámovody', en: 'vasa deferentia' },
+  UBERON_0001301: { cs: 'nadvarlata', en: 'epididymis' },
+  UBERON_0000473: { cs: 'varlata', en: 'testis' },
+  UBERON_0000989: { cs: 'penis', en: 'penis' },
+  UBERON_0000996: { cs: 'pochva', en: 'vagina' },
+  UBERON_0000002: { cs: 'děložní hrdlo', en: 'uterine cervix' },
   UBERON_0000995: { cs: 'děloha', en: 'uterus' },
+  UBERON_0001295: { cs: 'endometrium', en: 'endometrium' },
   UBERON_0003889: { cs: 'vejcovody', en: 'fallopian tubes' },
   UBERON_0000992: { cs: 'ovaria', en: 'ovaries' },
 };
+
+/** Tissues spanning the whole body: drawn fainter, and highlighted with a softer fill. */
+export const WHOLE_BODY = new Set([
+  'UBERON_0000014', 'UBERON_0001013', 'UBERON_0001134', 'UBERON_0002481', 'UBERON_0007844',
+  'UBERON_0002371', 'UBERON_0001021', 'UBERON_0000178', 'UBERON_0001135',
+]);
 
 /** ADME tissue names (database vocabulary) in Czech; English is the database name itself. */
 export const TISSUES_CS = {
@@ -107,6 +151,8 @@ export const TISSUES_CS = {
 /** ADME tissue UBERON id -> drawing organ id, where the drawing uses a proxy organ. */
 export const TISSUE_PROXY = {
   'UBERON:0002394': 'UBERON_0002110', // bile duct -> gall bladder
-  'UBERON:0002116': 'UBERON_0002108', // ileum -> small intestine
-  'UBERON:0001911': 'UBERON_0000310', // mammary gland -> breast (female drawing)
+  'UBERON:0001911': 'UBERON_0000310', // mammary gland -> breast
+  'UBERON:0002097': 'UBERON_0000014', // skin of body -> skin (zone of skin)
+  'CL:0000233': 'UBERON_0000178', // platelet -> blood
+  'UBERON:0011919': 'UBERON_0001134', // neuromuscular junction -> skeletal muscle
 };

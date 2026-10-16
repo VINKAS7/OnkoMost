@@ -33,33 +33,76 @@ UPSTREAM = ("https://raw.githubusercontent.com/ebi-gene-expression-group/anatomo
             + COMMIT + "/src/svg/homo_sapiens.{sex}.svg")
 OUT = str(Path(__file__).resolve().parents[1] / "components" / "onco-anatomogram" / "assets" / "anatomogram-hs-{sex}.svg")
 
-# Draw order = list order; the second field keeps an organ to one sex's drawing. Organs lying behind
-# others in the front view come later so they stay visible when tinted (pancreas and duodenum behind
-# the stomach/intestine, kidney behind the gut, adnexa behind the bowel loops).
+# Draw order = list order; the second field keeps an organ to one sex's drawing.
+# 1. Whole-body tissues first (skin is the whole body surface, the vessel tree and nerves span it,
+#    bones and muscles fill the limbs), so every organ is drawn on top of them.
+# 2. Organs; those lying behind others in the front view come later so they stay visible when tinted
+#    (pancreas and duodenum behind the stomach/intestine, kidney behind the gut, adnexa behind bowel loops).
+# Upstream ids that are not plain UBERON ids are renamed (RENAME); brain sub-regions, heart valves and
+# chambers, nose/throat parts and the CL_* blood-cell <use> copies are left out.
 KEEP = [
+    # whole-body tissues
+    ("UBERON_0000014", None),       # skin
+    ("UBERON_0001013", None),       # adipose tissue
+    ("UBERON_0001134", None),       # skeletal muscle
+    ("UBERON_0002481", None),       # bone (male upstream id is the typo UBERON_00024818)
+    ("UBERON_0007844", None),       # cartilage
+    ("UBERON_0002371", None),       # bone marrow
+    ("UBERON_0001021", None),       # nerve
+    ("UBERON_0002240", "male"),     # spinal cord
+    ("UBERON_0000178", None),       # blood  <use href="#CL_0000738"> (vessel tree, moved to <defs>)
+    ("UBERON_0000947", None),       # aorta
+    ("UBERON_0001135", None),       # smooth muscle
+    # head and neck
     ("UBERON_0000955", None),       # brain
+    ("UBERON_0000007", None),       # pituitary gland
+    ("UBERON_0000970", None),       # eye
+    ("UBERON_0001044", None),       # salivary gland
+    ("UBERON_0001831", None),       # parotid gland
+    ("UBERON_0001736", None),       # submandibular gland
+    ("UBERON_0002372", None),       # tonsil
+    ("UBERON_0002046", None),       # thyroid gland
+    # chest
+    ("UBERON_0003126", None),       # trachea
+    ("UBERON_0002185", None),       # bronchus
     ("UBERON_0001043", None),       # esophagus
-    ("UBERON_0000977", "female"),   # pleura
+    ("UBERON_0000977", None),       # pleura
     ("UBERON_0002048", None),       # lung
-    ("UBERON_0000310", "female"),   # breast
+    ("UBERON_0000310", None),       # breast
     ("UBERON_0000948", None),       # heart
+    ("UBERON_0001103", None),       # diaphragm
+    # abdomen
     ("UBERON_0002107", None),       # liver
     ("UBERON_0002106", None),       # spleen
     ("UBERON_0000945", None),       # stomach
     ("UBERON_0001155", None),       # colon
+    ("UBERON_0001153", None),       # caecum
+    ("UBERON_0001154", None),       # appendix
     ("UBERON_0002108", None),       # small intestine
+    ("UBERON_0002116", None),       # ileum
+    ("UBERON_0001052", None),       # rectum
     ("UBERON_0001255", None),       # urinary bladder
-    ("UBERON_0002367", "male"),     # prostate gland
     ("UBERON_0002113", None),       # kidney
     ("UBERON_0002369", None),       # adrenal gland
     ("UBERON_0002110", None),       # gall bladder (stands in for the bile ducts)
     ("UBERON_0002114", None),       # duodenum
     ("UBERON_0001264", None),       # pancreas
-    ("UBERON_0000029", "female"),   # lymph node
+    ("UBERON_0000029", None),       # lymph node
+    # reproductive organs
+    ("UBERON_0002367", "male"),     # prostate gland
+    ("UBERON_0000998", "male"),     # seminal vesicle
+    ("UBERON_0001000", "male"),     # vas deferens
+    ("UBERON_0001301", "male"),     # epididymis
+    ("UBERON_0000473", "male"),     # testis
+    ("UBERON_0000989", "male"),     # penis
+    ("UBERON_0000996", "female"),   # vagina
+    ("UBERON_0000002", "female"),   # uterine cervix
     ("UBERON_0000995", "female"),   # uterus
+    ("UBERON_0001295", "female"),   # endometrium
     ("UBERON_0003889", "female"),   # fallopian tube
     ("UBERON_0000992", "female"),   # ovary
 ]
+RENAME = {"UBERON_00024818": "UBERON_0002481"}
 SVG = "http://www.w3.org/2000/svg"
 XLINK = "http://www.w3.org/1999/xlink"
 
@@ -71,6 +114,9 @@ def prune(src: Path, sex: str) -> str:
     root = ET.parse(src).getroot()
     layers = {g.get("id"): g for g in root if g.get("id") in ("LAYER_EFO", "LAYER_OUTLINE")}
     efo, outline = layers["LAYER_EFO"], layers["LAYER_OUTLINE"]
+    for el in efo:
+        if el.get("id") in RENAME:
+            el.set("id", RENAME[el.get("id")])
     by_id = {el.get("id"): el for el in efo}
     missing = [i for i in keep if i not in by_id]
     if missing:
@@ -84,10 +130,28 @@ def prune(src: Path, sex: str) -> str:
         efo.append(by_id[i])
     root.remove(outline)
     root.insert(0, outline)
+    # Blood is drawn by <use href="#CL_0000738"> (the leukocyte vessel tree). The referenced group carries
+    # its own style="fill:none", which would beat any fill set on the <use>; move it into <defs> without
+    # that style so it renders only through the <use> and takes the <use>'s fill (as pharmacolibrary does).
+    tree = by_id.get("CL_0000738")
+    if tree is not None:
+        tree.attrib.pop("style", None)
+        for child in tree.iter():
+            if child is not tree and "fill:none" in (child.get("style") or ""):
+                child.attrib.pop("style", None)
+        defs = ET.Element(f"{{{SVG}}}defs")
+        defs.append(tree)
+        root.insert(0, defs)
     for el in [root, *root.iter()]:
         for k in list(el.attrib):
             if k.startswith("{http://www.inkscape.org") or k.startswith("{http://sodipodi"):
                 del el.attrib[k]
+    # Path coordinates carry 6+ decimals; 1 is plenty for a ~105 x 195 drawing (transforms keep full
+    # precision). Cuts the male drawing (bronchial tree, nerves) to a fraction of its size.
+    num = re.compile(r"-?\d+\.\d{2,}")
+    for el in root.iter():
+        if el.get("d"):
+            el.set("d", num.sub(lambda m: f"{float(m.group()):.1f}".rstrip("0").rstrip("."), el.get("d")))
     root.attrib.pop("width", None)
     root.attrib.pop("height", None)
     root.set("id", "mdt-anatomogram")
