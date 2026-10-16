@@ -1,12 +1,16 @@
-// Cached JSON loader for /data files.
+// Cached loaders for static files (/data JSON, /assets SVG).
 const cache = new Map();
 
-export function loadJSON(url) {
-  if (!cache.has(url)) {
-    cache.set(url, fetch(url).then((r) => {
+function load(url, as) {
+  const key = `${as}:${url}`;
+  if (!cache.has(key)) {
+    cache.set(key, fetch(url).then((r) => {
       if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
-      return r.json();
-    }).catch((e) => { cache.delete(url); throw e; }));
+      return r[as]();
+    }).catch((e) => { cache.delete(key); throw e; }));
   }
-  return cache.get(url);
+  return cache.get(key);
 }
+
+export const loadJSON = (url) => load(url, 'json');
+export const loadText = (url) => load(url, 'text');

@@ -1,0 +1,121 @@
+{
+  "sex": "male",
+  "organs": {
+    "UBERON_0001264": "pankreas",
+    "UBERON_0002114": "duodenum",
+    "UBERON_0002110": "žlučník a žlučové cesty",
+    "UBERON_0002107": "játra",
+    "UBERON_0002048": "plíce",
+    "UBERON_0002113": "ledviny",
+    "UBERON_0002108": "tenké střevo",
+    "UBERON_0000945": "žaludek",
+    "UBERON_0002106": "slezina",
+    "UBERON_0001155": "tlusté střevo",
+    "UBERON_0000948": "srdce",
+    "UBERON_0002369": "nadledviny",
+    "UBERON_0000955": "mozek",
+    "UBERON_0001255": "močový měchýř"
+  },
+  "findings": [
+    {
+      "organ": "UBERON_0001264",
+      "level": "suspect",
+      "date": "2026-01-06",
+      "when": null,
+      "text": "Hypoechogenní ložisko v hlavě pankreatu cca 32 mm",
+      "source": "FHIR DiagnosticReport · UZ břicha"
+    },
+    {
+      "organ": "UBERON_0002110",
+      "level": "related",
+      "date": "2026-01-06",
+      "when": null,
+      "text": "Dilatace intra- i extrahepatálních žlučových cest – obstrukce ložiskem",
+      "source": "FHIR DiagnosticReport · UZ břicha"
+    },
+    {
+      "organ": "UBERON_0002110",
+      "level": "related",
+      "date": "2026-01-09",
+      "when": {
+        "task": "ercp"
+      },
+      "text": "Obstrukce distálního choledochu, zaveden plastový stent",
+      "source": "Zpráva z ERCP"
+    },
+    {
+      "organ": "UBERON_0001264",
+      "level": "suspect",
+      "date": "2026-01-12",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Hypodenzní ložisko hlavy pankreatu 31 × 28 mm; kontakt s VMS < 90°, AMS a truncus coeliacus volné",
+      "source": "CT břicha a hrudníku – pankreatický protokol"
+    },
+    {
+      "organ": "UBERON_0002114",
+      "level": "possible",
+      "date": "2026-01-12",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Těsný kontakt s mediální stěnou duodena, infiltraci nelze vyloučit",
+      "source": "CT břicha a hrudníku – pankreatický protokol"
+    },
+    {
+      "organ": "UBERON_0002107",
+      "level": "excluded",
+      "date": "2026-01-12",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Bez ložiskových změn, metastázy nezachyceny",
+      "source": "CT břicha a hrudníku – pankreatický protokol"
+    },
+    {
+      "organ": "UBERON_0002048",
+      "level": "excluded",
+      "date": "2026-01-12",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Bez metastatických ložisek",
+      "source": "CT břicha a hrudníku – pankreatický protokol"
+    },
+    {
+      "organ": "UBERON_0001264",
+      "level": "suspect",
+      "date": "2026-01-13",
+      "when": {
+        "task": "histology"
+      },
+      "text": "Kartáčková cytologie z ERCP neprůkazná (atypie) · CA 19-9 412 kU/l",
+      "source": "Patologie VFN · Laboratoř VFN"
+    },
+    {
+      "organ": "UBERON_0001264",
+      "level": "confirmed",
+      "date": "2026-01-20",
+      "when": {
+        "mdt": "mdt2"
+      },
+      "text": "EUS-FNB: duktální adenokarcinom hlavy pankreatu, resekabilní",
+      "source": "Zpráva z 2. MDT"
+    }
+  ],
+  "medications": [
+    {
+      "drug": "metformin",
+      "label": "Metformin 1000 mg",
+      "dosage": "2× denně",
+      "ref": "FHIR MedicationStatement/m1"
+    },
+    {
+      "drug": "ramipril",
+      "label": "Ramipril 5 mg",
+      "dosage": "1× denně",
+      "ref": "FHIR MedicationStatement/m2"
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 // Domain actions used by components. All state changes go through store.updateCase.
-import { updateCase, getCase, getStoredCase, getData } from './store.js';
+import { updateCase, getCase, getStoredCase, templateFor } from './store.js';
+import { CASES } from './cases.js';
+import { computeMissing, openItems } from './derive.js';
 import { applyTemplate, applyMdtConclusion, acknowledge, GP_NAME, COORDINATOR_NAME, REVIEWER_NAME } from './seed.js';
-import { nowStamp, demoDate, dateOnly, maxDate, currentScreen } from './dates.js';
+import { nowStamp, demoDate, dateOnly, maxDate, currentScreen, fmtDate } from './dates.js';
 import { toast } from './toast.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -67,18 +69,21 @@ export function submitReferral(id) {
 }
 
 export function takeOver(id) {
+  const c0 = getCase(id);
+  const tpl = templateFor(c0);
   updateCase(id, (c) => {
-    applyTemplate(c, getData().template);
+    applyTemplate(c, tpl);
     c.phase = 'active';
     c.takenOverAt = nowStamp('koordinator');
-    if (!c.values.ecog) {
-      c.messages.push({ id: uid(), from: 'Koordinátor', to: GP_NAME, channel: 'app', at: nowStamp('koordinator'),
-        text: 'Dobrý den, prosím o doplnění ECOG pana Nováka.', requests: 'ecog' });
+    const ecogOpen = openItems(computeMissing(c, tpl, 'koordinator')).some((m) => m.id === 'ecog');
+    if (ecogOpen) {
+      c.messages.push({ id: uid(), from: 'Koordinátor', to: c.serviceRequest.requester, channel: 'app', at: nowStamp('koordinator'),
+        text: `Dobrý den, prosím o doplnění ECOG ${c.patient.refGen}.`, requests: 'ecog' });
     }
     c.messages.push({ id: uid(), from: 'Koordinátor', to: 'pacient', channel: 'sms', at: nowStamp('koordinator'),
-      text: 'CT 12. 1. v 8:30, Radiologie VFN, nalačno.' });
+      text: CASES[id].takeoverSms });
   });
-  toast('Případ převzat · sada „karcinom pankreatu v1“ spuštěna (8 úkolů)');
+  toast(`Případ převzat · sada „${tpl.title}“ spuštěna (${tpl.tasks.length} úkolů)`);
 }
 
 export const pendingDeps = (c, task) =>
@@ -115,9 +120,11 @@ export function sendMessage(id, msg) {
 }
 
 export function remindEcog(id) {
-  sendMessage(id, { from: 'Koordinátor', to: GP_NAME, channel: 'app', requests: 'ecog', reminder: true,
-    text: 'Připomínka: prosím o doplnění výkonnostního stavu (ECOG 0–4) pana Nováka – podmínka pro 1. MDT 13. 1.' });
-  toast('Připomínka odeslána MUDr. Dvořákové');
+  const c = getCase(id);
+  const mdt = c.tasks.find((t) => t.id === 'mdt1');
+  sendMessage(id, { from: 'Koordinátor', to: c.serviceRequest.requester, channel: 'app', requests: 'ecog', reminder: true,
+    text: `Připomínka: prosím o doplnění výkonnostního stavu (ECOG 0–4) ${c.patient.refGen}${mdt ? ` – podmínka pro 1. MDT ${fmtDate(mdt.due, { time: false })}` : ''}.` });
+  toast(`Připomínka odeslána ${c.serviceRequest.requesterDat}`);
 }
 
 let ackTimer = null;

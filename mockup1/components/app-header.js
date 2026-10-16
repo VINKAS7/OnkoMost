@@ -10,8 +10,12 @@ const ROLES = {
     nav: ['Nové referování', 'Moji referovaní pacienti (4)', 'Zprávy z KOC (1)'],
   },
   koordinator: {
-    suffix: ' · KOC', date: 'Demo · 12. 1. 2026', user: 'Bc. Petra Malá', role: 'koordinátorka KOC VFN – HPB',
+    suffix: ' · KOC', date: 'Demo · 12. 1. 2026', user: 'Bc. Petra Malá', role: 'koordinátorka KOC VFN',
     nav: ['Pracovní fronta', 'Kalendář MDT', 'Sady úkolů', 'Zprávy (3)'],
+  },
+  mdt: {
+    suffix: ' · MDT', date: 'Demo · 13. 1. 2026', user: 'prof. MUDr. Karel Vondra', role: 'přednosta onkologických MDT, KOC VFN',
+    nav: ['Jednání MDT', 'Kalendář konzilií', 'Archiv závěrů'],
   },
   revizni: {
     suffix: ' · revize', date: 'Demo · 27. 1. 2026', user: 'MUDr. Tomáš Beneš', role: 'revizní lékař VZP',
@@ -23,6 +27,7 @@ const SWITCH = [
   ['gp', '01 Referující lékař'],
   ['koordinator', '02 Koordinátor KOC'],
   ['revizni', '03 Revizní lékař VZP'],
+  ['mdt', '04 MDT'],
 ];
 
 class AppHeader extends KocElement {

@@ -8,7 +8,7 @@ import { fmtDate } from './lib/dates.js';
 
 // FHIR Communication thread. Header buttons can ask for an AI-drafted message (human sends).
 const RECIPIENTS = {
-  gp: { to: 'MUDr. Jana Dvořáková', channel: 'app', label: 'MUDr. Jana Dvořáková (aplikace)' },
+  gp: { to: null, channel: 'app', label: null }, // filled with the case's referring doctor
   patient: { to: 'pacient', channel: 'sms', label: 'Pacient (SMS)' },
   reviewer: { to: 'Revizní lékař VZP', channel: 'app', label: 'Revizní lékař VZP (aplikace)' },
 };
@@ -40,13 +40,20 @@ class MsgThread extends KocElement {
     this.drafting = true;
     this.update();
     this.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    const r = await completeJSON({ task: 'draft-message', messages: [{ role: 'user', content: JSON.stringify({ to }) }] });
+    const r = await completeJSON({ task: 'draft-message', messages: [{ role: 'user', content: JSON.stringify({ to, caseId: this.caseId }) }] });
     this.drafting = false;
     this.draft = r.data.text;
     this.aiDraft = r.model;
     this.update();
     this.$('#msg')?.focus();
   }
+
+  recipients(c) {
+    const gp = c.serviceRequest.requester;
+    return { ...RECIPIENTS, gp: { to: gp, channel: 'app', label: `${gp} (aplikace)` } };
+  }
+
+  caseChanged() { this.draft = ''; this.aiDraft = false; }
 
   render() {
     const c = getCase(this.caseId);
@@ -65,7 +72,7 @@ class MsgThread extends KocElement {
         </ol>
         <form data-action="send" aria-label="Nová zpráva">
           <div><label for="to">Komu</label>
-            <select id="to" data-action="to" data-key="to">${Object.entries(RECIPIENTS).map(([k, r]) => html`<option value="${k}" ${k === this.to ? 'selected' : ''}>${r.label}</option>`)}</select></div>
+            <select id="to" data-action="to" data-key="to">${Object.entries(this.recipients(c)).map(([k, r]) => html`<option value="${k}" ${k === this.to ? 'selected' : ''}>${r.label}</option>`)}</select></div>
           ${this.drafting ? html`<p class="banner ai" aria-live="polite">${icon('spark')}AI připravuje návrh zprávy…</p>` : ''}
           ${this.aiDraft && this.draft ? html`<p class="row"><span class="pill ai">${icon('spark')}AI návrh</span><span class="muted small">zkontrolujte a upravte před odesláním</span></p>` : ''}
           <div class="compose">
@@ -94,7 +101,7 @@ class MsgThread extends KocElement {
   send() {
     const text = this.draft.trim();
     if (!text) { this.$('#msg').focus(); return; }
-    const r = RECIPIENTS[this.to];
+    const r = this.recipients(getCase(this.caseId))[this.to];
     const msg = { from: 'Koordinátor', to: r.to, channel: r.channel, text };
     if (this.aiDraft) msg.draftedBy = `llm:${this.aiDraft}`;
     this.draft = '';

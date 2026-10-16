@@ -1,7 +1,7 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
-import { getCase } from './lib/store.js';
+import { getCase, templateFor } from './lib/store.js';
 import { completeTask, takeOver, addTask, pendingDeps } from './lib/actions.js';
 import { dueLabel, isOverdue, currentScreen, demoDate, addDays } from './lib/dates.js';
 
@@ -63,7 +63,7 @@ class TaskPlan extends KocElement {
     if (c.phase === 'submitted' || !c.tasks.length) {
       return html`<section class="card" aria-labelledby="tp-h">
         <div class="card-head"><h2 id="tp-h">Plán a úkoly</h2></div>
-        <p class="empty">Sada úkolů ještě není spuštěna. Po převzetí se z šablony „karcinom pankreatu v1“ vytvoří 8 úkolů s odpovědnými a termíny.</p>
+        <p class="empty">Sada úkolů ještě není spuštěna. Po převzetí se z šablony „${templateFor(c).title}“ vytvoří ${templateFor(c).tasks.length} úkolů s odpovědnými a termíny.</p>
         ${c.phase === 'submitted' ? html`<p style="margin-top:12px"><button class="btn primary" type="button" data-action="takeover">${icon('check')}Převzít a spustit sadu</button></p>` : ''}
       </section>`;
     }
@@ -110,6 +110,8 @@ class TaskPlan extends KocElement {
         </form>` : ''}
       </section>`;
   }
+
+  caseChanged() { this.blocked = null; this.adding = false; }
 
   onClick(e, el, action) {
     if (action === 'takeover') takeOver(this.caseId);

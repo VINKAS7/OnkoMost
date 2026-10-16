@@ -2,6 +2,7 @@ import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
 import { getCase } from './lib/store.js';
+import { CASES } from './lib/cases.js';
 import { sendMdtConclusion, acknowledgeCase } from './lib/actions.js';
 import { completeJSON } from './lib/llm.js';
 import { fmtDate } from './lib/dates.js';
@@ -19,6 +20,8 @@ class MdtUpload extends KocElement {
 
   init() { this.s ??= { file: null, loading: false, result: null, fields: null, ack: false }; }
 
+  caseChanged() { this.s = { file: null, loading: false, result: null, fields: null, ack: false }; }
+
   render() {
     const c = getCase(this.caseId);
     const show = ['active', 'closed-pending-ack', 'closed'].includes(c.phase) && c.tasks.length;
@@ -33,15 +36,19 @@ class MdtUpload extends KocElement {
     }
     if (c.phase === 'closed-pending-ack') {
       return html`<section class="card" aria-labelledby="mu-h">${head(html`<span class="pill warn">čeká na potvrzení</span>`)}
-        <p class="banner warn">${icon('clock')}Závěr odeslán ${fmtDate(c.sentAt)} MUDr. Dvořákové a reviznímu lékaři VZP · čeká se na potvrzení příjmu.</p>
+        <p class="banner warn">${icon('clock')}Závěr odeslán ${fmtDate(c.sentAt)} ${c.serviceRequest.requesterDat} a reviznímu lékaři VZP · čeká se na potvrzení příjmu.</p>
         <p style="margin-top:12px"><button class="btn" type="button" data-action="sim-ack">Simulovat potvrzení PL</button></p></section>`;
     }
 
-    const mdtDone = c.tasks.find((t) => t.id === 'mdt1')?.status === 'done';
+    const mdtTask = c.tasks.find((t) => t.id === 'mdt1');
     const s = this.s;
-    if (!mdtDone) {
+    if (mdtTask?.status !== 'done') {
       return html`<section class="card" aria-labelledby="mu-h">${head()}
-        <p class="empty">Dostupné po dokončení úkolu „1. MDT HPB“. Závěr se pak automaticky vrátí referujícímu i reviznímu lékaři.</p></section>`;
+        <p class="empty">Dostupné po dokončení úkolu „${mdtTask?.title || '1. MDT'}“. Závěr se pak automaticky vrátí referujícímu i reviznímu lékaři.</p></section>`;
+    }
+    if (!CASES[this.caseId].mdtReport) {
+      return html`<section class="card" aria-labelledby="mu-h">${head()}
+        <p class="empty">Ukázková zpráva z MDT a její strukturování jsou v demu připravené jen pro pana Nováka.</p></section>`;
     }
     return html`<section class="card" aria-labelledby="mu-h">${head(s.fields ? html`<span class="pill ai">${icon('spark')}AI návrh</span>` : '')}
       <div class="file-row">

@@ -35,7 +35,7 @@
 
     // Hide the docsify sidebar on app screens; keep it on the README/overview page.
     function hideSidebarOnAppPages(hook, vm) {
-      const APP = ['/gp', '/koordinator', '/revizni'];
+      const APP = ['/gp', '/koordinator', '/mdt', '/revizni'];
       const apply = () => document.body.classList.toggle('app-page', APP.includes(vm.route.path));
       hook.beforeEach((md) => { apply(); return md; });
       hook.doneEach(apply);

@@ -1,6 +1,8 @@
 // Base class for all components: Shadow DOM + shared stylesheet, store subscription,
 // event delegation via [data-action], and focus-preserving re-render.
 import { Raw } from './html.js';
+import { getSelected } from './store.js';
+import { currentScreen } from './dates.js';
 
 const BASE_CSS = `
 :host { display: block; font-family: var(--font-sans); color: var(--ink); font-size: 15px; line-height: 1.45; min-width: 0; }
@@ -90,7 +92,11 @@ export class KocElement extends HTMLElement {
     for (const type of EVENTS) root.addEventListener(type, (e) => this._dispatch(e));
   }
 
-  get caseId() { return this.getAttribute('case-id') || 'novak'; }
+  /** case-id="selected" follows the case picked on this screen (queue, MDT program). */
+  get caseId() {
+    const id = this.getAttribute('case-id') || 'novak';
+    return id === 'selected' ? getSelected(currentScreen()) : id;
+  }
 
   connectedCallback() {
     this._ac = new AbortController();
@@ -127,6 +133,9 @@ export class KocElement extends HTMLElement {
   /** Re-render; restores focus/selection for elements carrying data-key. */
   update() {
     if (!this.isConnected) return;
+    const cid = this.caseId;
+    if (this._cid && this._cid !== cid) this.caseChanged?.(); // drop per-case UI state
+    this._cid = cid;
     const root = this.shadowRoot;
     const active = root.activeElement;
     const key = active?.dataset?.key;

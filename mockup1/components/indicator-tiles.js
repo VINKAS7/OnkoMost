@@ -1,6 +1,6 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
-import { getCase, getData } from './lib/store.js';
+import { getCase, templateFor } from './lib/store.js';
 import { deriveIndicators } from './lib/derive.js';
 import { fmtDate, days } from './lib/dates.js';
 
@@ -19,7 +19,7 @@ class IndicatorTiles extends KocElement {
 
   render() {
     const c = getCase(this.caseId);
-    const i = deriveIndicators(c, getData().template);
+    const i = deriveIndicators(c, templateFor(c));
     const t = c.timeline;
     const v = (n) => (n == null ? '–' : days(n));
     const comp = i.completeness.map((x) => `${x.have}/${x.total}`).join(' → ') || '–';

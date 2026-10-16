@@ -1,6 +1,6 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
-import { getCase, getData } from './lib/store.js';
+import { getCase, getData, templateFor } from './lib/store.js';
 import { deriveIndicators } from './lib/derive.js';
 import { toast } from './lib/toast.js';
 import { fmtDate } from './lib/dates.js';
@@ -24,7 +24,7 @@ class ClosedList extends KocElement {
   render() {
     const d = getData();
     const c = getCase('novak');
-    const ind = deriveIndicators(c, d.template);
+    const ind = deriveIndicators(c, templateFor(c));
     const items = d.closed.cases.map((x) => (x.live ? {
       ...x, state: c.review?.status || 'new', closed: (c.timeline.ack || x.closed).slice(0, 10),
       lineHtml: html`Čas do léčby <strong>${ind.tt} dní</strong> · ${c.mdt.length}× MDT`,

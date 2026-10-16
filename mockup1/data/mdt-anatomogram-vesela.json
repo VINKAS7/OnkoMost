@@ -1,0 +1,145 @@
+{
+  "sex": "female",
+  "zoomViewBox": "28 46 50 60",
+  "organs": {
+    "UBERON_0000992": "ovaria",
+    "UBERON_0000995": "děloha",
+    "UBERON_0003889": "vejcovody",
+    "UBERON_0000029:7": "paraaortální uzliny",
+    "UBERON_0000977": "pleura",
+    "UBERON_0002107": "játra",
+    "UBERON_0002048": "plíce",
+    "UBERON_0002113": "ledviny",
+    "UBERON_0002108": "tenké střevo",
+    "UBERON_0001155": "tlusté střevo",
+    "UBERON_0002110": "žlučník a žlučové cesty",
+    "UBERON_0000945": "žaludek",
+    "UBERON_0001255": "močový měchýř",
+    "UBERON_0000310": "prsy"
+  },
+  "findings": [
+    {
+      "organ": "UBERON_0000992",
+      "level": "suspect",
+      "date": "2026-01-09",
+      "when": null,
+      "text": "Komplexní cystickosolidní útvar levého ovaria 74 × 58 mm, vaskularizace solidní části, O-RADS 5",
+      "source": "FHIR DiagnosticReport · TVUS, gynekologie Kladno"
+    },
+    {
+      "organ": "UBERON_0002113",
+      "level": "excluded",
+      "date": "2026-01-09",
+      "when": null,
+      "text": "Polycystické ledviny (ADPKD) – známá diagnóza, ne nádor",
+      "source": "FHIR Condition"
+    },
+    {
+      "organ": "UBERON_0000992",
+      "level": "suspect",
+      "date": "2026-01-12",
+      "when": {
+        "task": "markers"
+      },
+      "text": "CA-125 486 kU/l, HE4 312 pmol/l, ROMA 89 % (vysoké riziko)",
+      "source": "Laboratoř VFN"
+    },
+    {
+      "organ": "UBERON_0000992",
+      "level": "suspect",
+      "date": "2026-01-13",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Solidně-cystický adnexální tumor vlevo 78 mm; pravé ovarium bez ložisek",
+      "source": "CT hrudníku, břicha a pánve"
+    },
+    {
+      "organ": null,
+      "label": "omentum / peritoneum",
+      "level": "possible",
+      "date": "2026-01-13",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Nodulární zesílení omenta, malé množství ascitu – peritoneální diseminaci nelze vyloučit",
+      "source": "CT hrudníku, břicha a pánve"
+    },
+    {
+      "organ": "UBERON_0000029:7",
+      "level": "possible",
+      "date": "2026-01-13",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Paraaortální uzliny do 9 mm, hraniční velikost",
+      "source": "CT hrudníku, břicha a pánve"
+    },
+    {
+      "organ": "UBERON_0002107",
+      "level": "excluded",
+      "date": "2026-01-13",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Bez metastáz; drobné jaterní cysty v rámci ADPKD",
+      "source": "CT hrudníku, břicha a pánve"
+    },
+    {
+      "organ": "UBERON_0000977",
+      "level": "excluded",
+      "date": "2026-01-13",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Bez fluidothoraxu",
+      "source": "CT hrudníku, břicha a pánve"
+    },
+    {
+      "organ": "UBERON_0002113",
+      "level": "excluded",
+      "date": "2026-01-13",
+      "when": {
+        "task": "ct"
+      },
+      "text": "Oboustranná polycystóza (ADPKD), bez solidního ložiska",
+      "source": "CT hrudníku, břicha a pánve"
+    },
+    {
+      "organ": "UBERON_0000995",
+      "level": "excluded",
+      "date": "2026-01-13",
+      "when": {
+        "task": "gynonc"
+      },
+      "text": "Děloha a endometrium bez patologie; útvar vychází z levého ovaria",
+      "source": "Gynekoonkologické vyšetření VFN"
+    }
+  ],
+  "medications": [
+    {
+      "drug": "tolvaptan",
+      "label": "Tolvaptan 60 + 30 mg",
+      "dosage": "2× denně",
+      "ref": "FHIR MedicationStatement/v1"
+    },
+    {
+      "drug": "telmisartan",
+      "label": "Telmisartan 80 mg",
+      "dosage": "1× denně",
+      "ref": "FHIR MedicationStatement/v2"
+    },
+    {
+      "drug": "hydrochlorothiazide",
+      "label": "Hydrochlorothiazid 12,5 mg",
+      "dosage": "1× denně",
+      "ref": "FHIR MedicationStatement/v3"
+    },
+    {
+      "drug": "allopurinol",
+      "label": "Allopurinol 200 mg",
+      "dosage": "1× denně",
+      "ref": "FHIR MedicationStatement/v4"
+    }
+  ]
+}

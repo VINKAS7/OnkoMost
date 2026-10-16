@@ -1,7 +1,7 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
-import { getCase } from './lib/store.js';
+import { getCase, templateFor } from './lib/store.js';
 import { markReviewed } from './lib/actions.js';
 import { fmtDate, isOverdue, currentScreen } from './lib/dates.js';
 
@@ -43,6 +43,26 @@ class CaseHeader extends KocElement {
         <p class="line">KOC VFN Praha – HPB · koordinátorka Bc. Petra Malá · referující MUDr. Jana Dvořáková (PL Benešov) · informace doručena automaticky ${fmtDate(c.timeline.ack || c.sentAt)}</p>
       </section>`;
     }
+    if (role === 'mdt') {
+      // ECOG either answered explicitly or already stated in the confirmed handover.
+      const ecog = c.values?.ecog?.value ?? (c.handover?.sections || []).map((s) => s.text).join(' ').match(/\bECOG (\d)/)?.[1];
+      const decided = c.mdt.find((m) => m.decision);
+      const mdtTask = c.tasks.find((t) => t.id === 'mdt1');
+      return html`<section class="card">
+        <div class="top">
+          <div>
+            <h1>${name}</h1>
+            <div class="pills">
+              <span class="pill ${decided ? 'ok' : 'accent'}">${decided ? `rozhodnuto ${fmtDate(decided.date, { time: false })}` : `projednání ${mdtTask ? fmtDate(mdtTask.due) : ''}`}</span>
+              <span class="pill mono">${c.diagnosis ? c.diagnosis.split(' ')[0] : `${c.serviceRequest.reasonCode} susp.`}</span>
+              ${ecog != null ? html`<span class="pill mono">ECOG ${ecog}</span>` : html`<span class="pill warn">ECOG chybí</span>`}
+              <span class="pill mono">${c.patient.birthNumberMasked}</span>
+            </div>
+          </div>
+        </div>
+        <p class="line">${templateFor(c).board || 'MDT HPB'}, KOC VFN Praha · předkládá Bc. Petra Malá (koordinátorka) · referující ${c.serviceRequest.requester}, ${c.serviceRequest.requesterOrg} · ${c.patient.summary}</p>
+      </section>`;
+    }
     const overdue = c.tasks.some((t) => isOverdue(t, currentScreen()));
     const [tone, label] = overdue && c.phase === 'active' ? ['miss', 'po termínu'] : PHASE_PILL[c.phase];
     const hospital = c.tasks.find((t) => t.id === 'hospital' && t.status === 'done');
@@ -59,7 +79,7 @@ class CaseHeader extends KocElement {
           <button class="btn sm" type="button" data-action="task" ${active ? '' : 'disabled'}>${icon('plus')}Úkol</button>
         </div>
       </div>
-      <p class="line">${c.serviceRequest.reasonCode} susp. · referoval(a) MUDr. Jana Dvořáková, PL Benešov · ${fmtDate(c.timeline.referral, { year: true })}${hospital ? ' · hospitalizován Interna VFN' : ''}</p>
+      <p class="line">${c.serviceRequest.reasonCode} susp. · referoval(a) ${c.serviceRequest.requester}, ${c.serviceRequest.requesterOrg} · ${fmtDate(c.timeline.referral, { year: true })}${hospital ? ' · hospitalizován Interna VFN' : ''}</p>
     </section>`;
   }
 

@@ -1,12 +1,12 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
-import { getCase, getData } from './lib/store.js';
+import { getCase, templateFor } from './lib/store.js';
 import { computeMissing, openItems } from './lib/derive.js';
 import { setEcog, remindEcog } from './lib/actions.js';
 import { daysBetween, demoDate, fmtDate, days, currentScreen } from './lib/dates.js';
 
-// Rule-based completeness check against template-pancreas.json (no LLM).
+// Rule-based completeness check against the case's care-plan template (data/template-*.json, no LLM).
 const GP_PILL = { 'blocks-mdt': ['miss', 'blokuje MDT'], gp: ['warn', 'doplňte vy'], recommended: ['accent', 'doporučeno'] };
 const ECOG_HINT = ['plně aktivní', 'omezen při námaze', 'soběstačný, nepracuje', 'omezeně soběstačný', 'zcela odkázaný'];
 
@@ -27,7 +27,7 @@ class MissingList extends KocElement {
 
   render() {
     const c = getCase(this.caseId);
-    const tpl = getData().template;
+    const tpl = templateFor(c);
     const audience = this.getAttribute('audience') || 'gp';
     return audience === 'gp' ? this.renderGp(c, tpl) : this.renderCoordinator(c, tpl);
   }
@@ -65,7 +65,7 @@ class MissingList extends KocElement {
         ${!rows.length ? html`<p class="banner ok">${icon('check')}Podklady pro 1. MDT jsou kompletní.</p>` : ''}
         ${ecog ? html`<p class="resolved">${icon('check')}<span>Doplněno: Výkonnostní stav (ECOG) = <strong class="mono">${ecog.value}</strong> · ${fmtDate(ecog.at)}</span>
           <button class="btn sm ghost" type="button" data-action="ecog-clear" data-key="ecog-clear">Zrušit</button></p>` : ''}
-        <p class="note rule">${icon('check')}<span>Kontrolu provádí pravidlo podle šablony „karcinom pankreatu v1“, ne AI.</span></p>`}
+        <p class="note rule">${icon('check')}<span>Kontrolu provádí pravidlo podle šablony „${tpl.title}“, ne AI.</span></p>`}
       </section>`;
   }
 
@@ -84,7 +84,7 @@ class MissingList extends KocElement {
       if (m.id === 'ecog') {
         if (!firstReq) return 'nevyžádáno';
         const wait = Math.max(0, daysBetween(firstReq.at, demoDate(screen)));
-        return `vyžádáno od MUDr. Dvořákové ${fmtDate(firstReq.at, { time: false })} · bez odpovědi ${days(wait)}${lastReminder ? ` · připomenuto ${fmtDate(lastReminder.at)}` : ''}`;
+        return `vyžádáno od ${c.serviceRequest.requesterDat} ${fmtDate(firstReq.at, { time: false })} · bez odpovědi ${days(wait)}${lastReminder ? ` · připomenuto ${fmtDate(lastReminder.at)}` : ''}`;
       }
       return '';
     };

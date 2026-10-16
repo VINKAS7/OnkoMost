@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>onco-anatomogram demo</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #F3F3EF; font-family: system-ui, sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+    h1 { font-size: 20px; margin: 0; }
+  </style>
+  <script type="module" src="onco-anatomogram.js"></script>
+</head>
+<body>
+<main>
+  <h1>&lt;onco-anatomogram&gt; – standalone demo</h1>
+
+  <!-- 1. Drugs only: organ sites queried from the bundled ADME SQLite. -->
+  <onco-anatomogram lang="en" sex="female" drugs="tolvaptan, telmisartan, hydrochlorothiazide, allopurinol"></onco-anatomogram>
+
+  <!-- 2. Findings set as a property, plus drugs. -->
+  <onco-anatomogram id="js" lang="en" sex="male" zoom="abdomen" drugs="metformin, ramipril"></onco-anatomogram>
+</main>
+<script type="module">
+  document.getElementById('js').board = {
+    findings: [
+      { organ: 'UBERON_0001264', level: 'suspect', date: '2026-01-12', text: 'Hypodense lesion in the pancreatic head, 31 × 28 mm', source: 'CT abdomen' },
+      { organ: 'UBERON_0002114', level: 'possible', date: '2026-01-12', text: 'Close contact with the duodenal wall', source: 'CT abdomen' },
+      { organ: 'UBERON_0002107', level: 'excluded', date: '2026-01-12', text: 'No liver metastases', source: 'CT abdomen' },
+    ],
+  };
+  document.addEventListener('organ-select', (e) => console.log('organ-select', e.detail));
+</script>
+</body>
+</html>

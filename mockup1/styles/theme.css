@@ -18,6 +18,10 @@
   --miss-soft: #FBE9E7;
   --ai: #3F347D;
   --ai-soft: #ECEAF6;
+  --tumor: #C62828;       /* anatomogram: suspicion of cancer */
+  --tumor-soft: #F4B4AE;
+  --drug: #1B57AE;        /* anatomogram: organs affected by current drugs */
+  --drug-soft: #E3EDFB;
   --focus: #0E5A66;
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -70,7 +74,8 @@ body.app-page .markdown-section > :not(app-header) {
 .stack, .detail { display: grid; gap: 16px; align-content: start; min-width: 0; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .review-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 1180px) { .detail-grid, .review-grid { grid-template-columns: minmax(0, 1fr); } }
+.mdt-grid { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1180px) { .detail-grid, .review-grid, .mdt-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 980px) {
   .layout-2col, .layout-queue, .layout-review { grid-template-columns: minmax(0, 1fr); }
 }

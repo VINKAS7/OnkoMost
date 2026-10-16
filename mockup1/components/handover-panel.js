@@ -1,7 +1,7 @@
 import { KocElement, copyText } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
-import { getCase } from './lib/store.js';
+import { getCase, templateFor } from './lib/store.js';
 import { setHandoverDraft, editHandoverSection } from './lib/actions.js';
 import { completeJSON } from './lib/llm.js';
 import { fmtDate } from './lib/dates.js';
@@ -38,7 +38,7 @@ class HandoverPanel extends KocElement {
     completeJSON({
       task: 'extract-handover',
       messages: [
-        { role: 'system', content: 'Vytěž strukturovaný handover dle šablony karcinom pankreatu v1. U každé sekce uveď zdroj.' },
+        { role: 'system', content: `Vytěž strukturovaný handover dle šablony ${templateFor(c).title}. U každé sekce uveď zdroj.` },
         { role: 'user', content: JSON.stringify({ src: this.getAttribute('src'), sources: c.sources, uploads: (c.uploads || []).map((u) => u.name) }) },
       ],
     }).then((r) => { this.loading = false; setHandoverDraft(this.caseId, r); })
@@ -68,7 +68,7 @@ class HandoverPanel extends KocElement {
             <div class="row"><span class="pill ai">${icon('spark')}AI návrh</span>${confirmed ? html`<span class="pill ok">${icon('check')}potvrzen</span>` : ''}</div>
             <h2 id="ho-h">Strukturovaný handover</h2>
           </div>
-          <span class="muted small">Šablona: karcinom pankreatu v1</span>
+          <span class="muted small">Šablona: ${templateFor(c).title}</span>
         </div>
         ${!h ? html`<div class="loading" aria-live="polite">
             <p class="banner ai">${icon('spark')}${this.error ? `Vytěžení selhalo: ${this.error}` : 'AI vytěžuje dokumentaci (FHIR + epikríza)…'}</p>

@@ -1,0 +1,19 @@
+{
+  "template": "ovary-v1",
+  "templateLabel": "karcinom ovaria v1",
+  "sections": [
+    { "id": "history", "title": "Anamnéza a symptomy",
+      "text": "Od poloviny prosince zvětšování břicha, tlak v podbřišku, časná sytost. Úbytek hmotnosti 3 kg za 6 týdnů. ECOG 1.",
+      "source": "Zpráva gynekologa.pdf, str. 1" },
+    { "id": "imaging", "title": "Zobrazovací vyšetření",
+      "text": "TVUS 9. 1.: komplexní cystickosolidní útvar levého ovaria 74 × 58 mm s vaskularizací solidní části, O-RADS 5. Malé množství volné tekutiny v Douglasově prostoru.",
+      "source": "FHIR DiagnosticReport" },
+    { "id": "labs", "title": "Laboratoř", "mono": true,
+      "text": "CA-125 486 kU/l ↑ · kreatinin 118 µmol/l ↑ · urea 9,1 mmol/l · Na 136 mmol/l · K 4,2 mmol/l",
+      "source": "FHIR Observation ×5" },
+    { "id": "comorbidities", "title": "Komorbidity, medikace, alergie",
+      "text": "ADPKD (polycystické ledviny), CKD G3a, hypertenze, hyperurikémie · tolvaptan 60 + 30 mg, telmisartan 80 mg, hydrochlorothiazid 12,5 mg, allopurinol 200 mg · alergie: neudává",
+      "source": "FHIR Condition ×4 · MedicationStatement ×4" }
+  ],
+  "originals": ["Zpráva gynekologa.pdf", "FHIR bundle (9 zdrojů)"]
+}

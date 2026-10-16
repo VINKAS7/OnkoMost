@@ -1,10 +1,10 @@
 // Demo dates per screen + small date helpers (dates are ISO strings 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM').
-export const DEMO_DATES = { overview: '2026-01-06', gp: '2026-01-06', koordinator: '2026-01-12', revizni: '2026-01-27' };
+export const DEMO_DATES = { overview: '2026-01-06', gp: '2026-01-06', koordinator: '2026-01-12', mdt: '2026-01-13', revizni: '2026-01-27' };
 
 export function currentScreen() {
   const m = location.hash.match(/^#\/([a-z]+)/);
   const s = m && m[1];
-  return ['gp', 'koordinator', 'revizni'].includes(s) ? s : 'overview';
+  return ['gp', 'koordinator', 'mdt', 'revizni'].includes(s) ? s : 'overview';
 }
 
 export const demoDate = (screen = currentScreen()) => DEMO_DATES[screen];

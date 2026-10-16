@@ -5,25 +5,25 @@
 </kpi-strip>
 
 <div class="layout-queue">
-<case-queue src="data/queue.json" selected="novak">
+<case-queue src="data/queue.json">
 </case-queue>
 <section class="detail" aria-label="Detail případu">
-<case-header case-id="novak" role="koordinator">
+<case-header case-id="selected" role="koordinator">
 </case-header>
-<case-tracker case-id="novak"><tt-bar case-id="novak"></tt-bar></case-tracker>
+<case-tracker case-id="selected"><tt-bar case-id="selected"></tt-bar></case-tracker>
 <div class="detail-grid">
 <div class="stack">
-<task-plan case-id="novak">
+<task-plan case-id="selected">
 </task-plan>
-<mdt-upload case-id="novak">
+<mdt-upload case-id="selected">
 </mdt-upload>
 </div>
 <div class="stack">
-<missing-list case-id="novak" audience="koordinator">
+<missing-list case-id="selected" audience="koordinator">
 </missing-list>
-<handover-panel case-id="novak" compact>
+<handover-panel case-id="selected" compact>
 </handover-panel>
-<msg-thread case-id="novak">
+<msg-thread case-id="selected">
 </msg-thread>
 </div>
 </div>

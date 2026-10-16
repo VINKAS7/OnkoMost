@@ -29,7 +29,12 @@ const MOCK = {
     return { category: hit ? hit[1] : 'Ambulantní zpráva', section: hit ? hit[2] : 'history', confidence: hit ? 0.86 : 0.55 };
   },
   'draft-message': async (messages) => {
-    const { to } = JSON.parse(lastUser(messages) || '{}');
+    const { to, caseId = 'novak' } = JSON.parse(lastUser(messages) || '{}');
+    if (caseId === 'vesela') {
+      if (to === 'patient') return { text: 'Dobrý den, připomínáme vyšetření v KOC VFN. Termíny najdete v SMS od koordinátorky. Dotazy: koordinace gynekoonkologie, tel. 224 96• •••.' };
+      if (to === 'reviewer') return { text: 'Dobrý den, k případu paní Veselé doplňujeme: ' };
+      return { text: 'Dobrý den, paní doktorko, paní Veselá je převzata do KOC VFN. Nefrologie, CT a gynekoonkologické vyšetření 13. 1., MDT gynekoonkologie 15. 1. Děkujeme za kompletní podklady.' };
+    }
     if (to === 'patient') return { text: 'Dobrý den, připomínáme vyšetření v KOC VFN. Termíny najdete v SMS od koordinátorky. Dotazy: koordinace HPB, tel. 224 96• •••.' };
     if (to === 'reviewer') return { text: 'Dobrý den, k případu pana Nováka doplňujeme: ' };
     return { text: 'Dobrý den, paní doktorko, pan Novák je převzat do KOC VFN, CT a nádorové markery dnes, 1. MDT plánováno na 13. 1. Prosíme o doplnění ECOG (0–4). Děkujeme.' };

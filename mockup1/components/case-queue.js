@@ -1,7 +1,7 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
-import { getCase, getData } from './lib/store.js';
+import { getCase, getData, templateFor, getSelected, setSelected } from './lib/store.js';
 import { computeMissing, openItems, nextTask } from './lib/derive.js';
 import { takeOver } from './lib/actions.js';
 import { toast } from './lib/toast.js';
@@ -12,19 +12,19 @@ const STATE = {
   pending: ['warn', 'čeká na potvrzení'], closed: ['ok', 'uzavřeno'],
 };
 
-/** Queue entry for Novák derived from live case state. */
-export function liveNovak(base) {
-  const c = getCase('novak', 'koordinator');
-  const tpl = getData().template;
+/** Queue entry for a demo case (queue.json "live": true) derived from its live state. */
+export function liveEntry(base) {
+  const c = getCase(base.id, 'koordinator');
+  const tpl = templateFor(c);
   const today = demoDate('koordinator');
   const e = { ...base };
   if (c.phase === 'submitted') {
-    Object.assign(e, { state: 'new', context: `od ${fmtDate(c.submittedAt)} · MUDr. Dvořáková`, nextStep: 'převzít a spustit sadu',
+    Object.assign(e, { state: 'new', context: `od ${fmtDate(c.submittedAt)} · ${c.serviceRequest.requester}`, nextStep: 'převzít a spustit sadu',
       due: today, dueLabel: `dnes ${fmtDate(today)}`, owner: 'vy (koordinátor)', missing: 0, canTakeOver: true });
   } else if (c.phase === 'closed-pending-ack' || c.phase === 'closed') {
     const done = c.phase === 'closed';
     Object.assign(e, { state: done ? 'closed' : 'pending', context: c.diagnosis || '', nextStep: done ? 'žádný · případ uzavřen' : 'potvrzení příjmu',
-      due: '2026-01-27', dueLabel: done ? `potvrzeno ${fmtDate(c.timeline.ack)}` : '27. 1.', owner: done ? 'nikdo' : 'MUDr. Jana Dvořáková', missing: 0 });
+      due: '2026-01-27', dueLabel: done ? `potvrzeno ${fmtDate(c.timeline.ack)}` : '27. 1.', owner: done ? 'nikdo' : c.serviceRequest.requester, missing: 0 });
   } else {
     const t = nextTask(c);
     const missing = openItems(computeMissing(c, tpl, 'koordinator')).length;
@@ -41,11 +41,15 @@ export function liveNovak(base) {
   return e;
 }
 
-/** Totals from queue.json adjusted for Novák's live state (baseline counts him as active). */
+/** Totals: queue.json counts the other (static) cases; each live demo case adds its current state. */
 export function adjustedTotals(q) {
   const t = { ...q.totals };
-  const n = liveNovak(q.cases.find((c) => c.id === 'novak'));
-  if (n.state !== 'active') { t.active -= 1; if (n.state === 'new') t.new += 1; if (n.state === 'closed' || n.state === 'pending') t.all -= 1; }
+  for (const e of q.cases.filter((c) => c.live).map(liveEntry)) {
+    if (e.state === 'closed' || e.state === 'pending') continue;
+    t.all += 1;
+    if (e.state in t) t[e.state] += 1;
+    if (e.overdue) t.overdue += 1;
+  }
   return t;
 }
 
@@ -73,12 +77,11 @@ class CaseQueue extends KocElement {
 
   init() {
     this.filter ??= 'all';
-    this.selected ??= this.getAttribute('selected') || 'novak';
   }
 
   entries() {
     const q = getData().queue;
-    return q.cases.map((c) => (c.live ? liveNovak(c) : c))
+    return q.cases.map((c) => (c.live ? liveEntry(c) : c))
       .sort((a, b) => (!!b.overdue - !!a.overdue) || (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   }
 
@@ -97,7 +100,7 @@ class CaseQueue extends KocElement {
         <ul aria-live="polite">
           ${shown.map((e) => {
             const [tone, label] = e.overdue ? STATE.overdue : STATE[e.state];
-            const sel = e.id === this.selected;
+            const sel = e.id === getSelected('koordinator');
             return html`<li class="qcard ${sel ? 'sel' : ''} ${e.overdue ? 'overdue' : ''}">
               <button class="main" type="button" data-action="select" data-id="${e.id}" data-key="q-${e.id}" aria-pressed="${sel}">
                 <span class="top"><span class="name">${e.name}, ${e.age}</span><span class="pill ${tone}">${label}</span></span>
@@ -106,7 +109,7 @@ class CaseQueue extends KocElement {
                 <span class="owner">Na tahu: <strong>${e.owner}</strong></span>
                 ${e.missing ? html`<span><span class="pill miss">${e.missing} chybí</span></span>` : ''}
               </button>
-              ${e.canTakeOver ? html`<div class="tail"><button class="btn primary sm" type="button" data-action="takeover" data-key="takeover">${icon('check')}Převzít a spustit sadu</button></div>` : ''}
+              ${e.canTakeOver ? html`<div class="tail"><button class="btn primary sm" type="button" data-action="takeover" data-id="${e.id}" data-key="takeover-${e.id}">${icon('check')}Převzít a spustit sadu</button></div>` : ''}
             </li>`;
           })}
         </ul>
@@ -118,10 +121,11 @@ class CaseQueue extends KocElement {
   onClick(e, el, action) {
     if (action === 'filter') { this.filter = el.dataset.f; this.update(); }
     if (action === 'select') {
-      if (el.dataset.id !== 'novak') toast('Detail je v demu k dispozici jen pro pana Nováka.');
-      else { this.selected = 'novak'; this.update(); }
+      const live = getData().queue.cases.find((c) => c.id === el.dataset.id)?.live;
+      if (!live) toast('Detail je v demu k dispozici jen pro pana Nováka a paní Veselou.');
+      else setSelected('koordinator', el.dataset.id);
     }
-    if (action === 'takeover') takeOver('novak');
+    if (action === 'takeover') { setSelected('koordinator', el.dataset.id); takeOver(el.dataset.id); }
   }
 }
 customElements.define('case-queue', CaseQueue);

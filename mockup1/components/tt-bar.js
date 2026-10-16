@@ -1,6 +1,6 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
-import { getCase, getData } from './lib/store.js';
+import { getCase, templateFor } from './lib/store.js';
 import { deriveTT } from './lib/derive.js';
 import { currentScreen, days } from './lib/dates.js';
 
@@ -25,7 +25,7 @@ class TtBar extends KocElement {
 
   render() {
     const c = getCase(this.caseId);
-    const { segs, elapsed } = deriveTT(c, getData().template, currentScreen());
+    const { segs, elapsed } = deriveTT(c, templateFor(c), currentScreen());
     const label = (s) => s.key === 'rest' ? `zbývá do cíle MDT ${s.days} d` : `${s.key} ${s.days == null ? '–' : s.days + ' d'}`;
     const aria = 'Čas do léčby = T1 + T2 + T3. ' + segs.map((s) => s.key === 'rest'
       ? `Do cílového termínu MDT zbývá ${days(s.days)}.`

@@ -1,7 +1,8 @@
 import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
-import { getCase, getData, isPrebaked } from './lib/store.js';
+import { getCase, templateFor, isPrebaked } from './lib/store.js';
+import { CASES } from './lib/cases.js';
 import { deriveSteps } from './lib/derive.js';
 import { currentScreen, DEMO_DATES, fmtDate } from './lib/dates.js';
 
@@ -41,7 +42,7 @@ class CaseTracker extends KocElement {
   render() {
     const c = getCase(this.caseId);
     const screen = currentScreen();
-    const { steps, summary } = deriveSteps(c, getData().template, screen);
+    const { steps, summary } = deriveSteps(c, templateFor(c), screen);
     return html`
       <section class="card" aria-labelledby="t">
         <div class="card-head">
@@ -60,7 +61,9 @@ class CaseTracker extends KocElement {
             </li>`)}
         </ol>
         ${this.children.length ? html`<div class="slot"><slot></slot></div>` : ''}
-        ${isPrebaked(this.caseId, screen) ? html`<p class="note prebaked">${icon('clock')}<span>Připravený stav k demo datu ${fmtDate(DEMO_DATES[screen], { year: true })}. Pro živý průchod začněte na obrazovce <a href="#/gp">referujícího lékaře</a>.</span></p>` : ''}
+        ${isPrebaked(this.caseId, screen) ? html`<p class="note prebaked">${icon('clock')}<span>Připravený stav k demo datu ${fmtDate(DEMO_DATES[screen], { year: true })}. Pro živý průchod ${CASES[this.caseId].gpFlow
+          ? html`začněte na obrazovce <a href="#/gp">referujícího lékaře</a>`
+          : html`převezměte případ na obrazovce <a href="#/koordinator">koordinátora</a>`}.</span></p>` : ''}
       </section>`;
   }
 }
