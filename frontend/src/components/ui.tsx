@@ -7,7 +7,14 @@ export const STATE_COLOR: Record<string, string> = {
   sent: "gray", in_triage: "blue", waiting_for_documents: "orange", complete: "purple", ready_for_mdt: "purple",
   mdt_conclusion: "blue", feedback_sent: "green", closed: "green",
 };
-export const DOC_COLOR: Record<string, string> = { have: "green", missing: "red", conflict: "yellow", conditional: "gray", skipped: "gray" };
+export const DOC_COLOR: Record<string, string> = { have: "green", missing: "red", missing_needed: "red", missing_optional: "gray",
+  conflict: "yellow", conditional: "gray", skipped: "gray" };
+
+/** Document state of a step, with "missing" split: needed for the MDT (red) or not needed (grey, non-blocking step). */
+export function docState(n: { doc_status?: string | null; blocking?: boolean }): string | undefined {
+  if (n.doc_status !== "missing") return n.doc_status ?? undefined;
+  return n.blocking === false ? "missing_optional" : "missing_needed";
+}
 
 export function Tag({ color = "gray", children, title }: { color?: string; children: ReactNode; title?: string }) {
   return <span className={`tag ${color}`} title={title}>{children}</span>;
@@ -122,12 +129,13 @@ export function Spinner() {
 }
 
 /** "7 have · 2 missing · 1 conflict" as coloured dots. */
-export function DocCounts({ counts }: { counts: { have?: number; missing?: number; conflict?: number } }) {
+export function DocCounts({ counts }: { counts: { have?: number; missing?: number; missing_optional?: number; conflict?: number } }) {
   const { t } = useApp();
   return (
     <span className="row" style={{ gap: 12 }}>
       <Status color="green">{counts.have ?? 0} {t("doc.have").toLowerCase()}</Status>
-      {!!counts.missing && <Status color="red">{counts.missing} {t("doc.missing").toLowerCase()}</Status>}
+      {!!counts.missing && <Status color="red">{counts.missing} {t("doc.missing_needed").toLowerCase()}</Status>}
+      {!!counts.missing_optional && <Status color="gray">{counts.missing_optional} {t("doc.missing_optional").toLowerCase()}</Status>}
       {!!counts.conflict && <Status color="yellow">{counts.conflict} {t("doc.conflict").toLowerCase()}</Status>}
     </span>
   );

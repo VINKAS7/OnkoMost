@@ -1,0 +1,1026 @@
+{
+ "code": "pancreas",
+ "version_label": "v.modrakniha.2026",
+ "status": "active",
+ "guideline_source": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25 (https://www.linkos.cz/…/32-7-zhoubny-novotvar-slinivky-brisni-c25/), závazný text pro úrovně požadavků. Strukturní zdroje: NCCN Pancreatic Adenocarcinoma (kritéria resekability), IAP 2017 (hraniční resekabilita), ESMO 2023, AWMF S3 2024 (stagingová laparoskopie), NICE NG85 (PET-CT). Převzato z mockup1 (seed/pathways/diagnostic/pancreas.json). SLA dny jsou lokální. Před klinickým použitím musí ověřit lékaři KOC.",
+ "graph": {
+  "nodes": [
+   {
+    "id": "referral",
+    "type": "start",
+    "label": "Žádost o převzetí (PL / specialista)",
+    "label_en": "Referral (GP / specialist)",
+    "phase": "intake",
+    "owner_role": "gp",
+    "sla_days": 0,
+    "completion": "evidence",
+    "description": "Žádost o převzetí pacienta se suspektním karcinomem pankreatu do péče KOC. Musí identifikovat pacienta (jméno, RČ) a uvádět důvod odeslání (např. ložisko pankreatu na UZ/CT, nebolestivý ikterus, hubnutí, nově vzniklý diabetes). Počítá se i epikríza nebo propouštěcí zpráva s žádostí o převzetí.",
+    "description_en": "The referral letter asking the cancer centre (KOC) to take over a patient with suspected pancreatic cancer. It must identify the patient (name, birth number) and give the reason for referral (e.g. a pancreatic mass on ultrasound/CT, painless jaundice, weight loss, new-onset diabetes). A GP summary or discharge letter with the request also counts.",
+    "why": "Vstupní bod cesty – případ začíná přijetím žádosti v KOC.",
+    "why_en": "Entry point of the pathway – the case starts when the KOC receives the referral.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "document",
+      "doc_type": "referral"
+     }
+    ]
+   },
+   {
+    "id": "triage",
+    "type": "step",
+    "label": "Triáž – převzetí koordinátorem",
+    "label_en": "Triage – coordinator accepts",
+    "phase": "intake",
+    "owner_role": "coordinator",
+    "sla_days": 1,
+    "completion": "manual",
+    "action": "Přijmout případ",
+    "description": "Koordinátor zkontroluje úplnost žádosti a přijme pacienta na cestu karcinomu pankreatu.",
+    "description_en": "The coordinator checks the referral is complete and accepts the patient onto the pancreatic cancer pathway.",
+    "why": "ESMO: léčebnou strategii má určit multidisciplinární tým v expertním centru [III, A] – triáž sem pacienta bez prodlení nasměruje.",
+    "why_en": "ESMO: the treatment strategy must be defined by a multidisciplinary tumour board at an expert centre [III, A] – triage routes the patient there without delay."
+   },
+   {
+    "id": "prior_reports",
+    "type": "step",
+    "label": "Předchozí zprávy",
+    "label_en": "Prior reports",
+    "phase": "diagnostics",
+    "owner_role": "coordinator",
+    "sla_days": 3,
+    "completion": "evidence",
+    "description": "Každé vyšetření, které žádost uvádí jako již provedené (zobrazení, endoskopie, laboratoř, odborná vyšetření), musí být v dokumentaci jako vlastní zpráva nebo snímky. Zmínka v žádosti není výsledek.",
+    "description_en": "Every examination the referral lists as already done (imaging, endoscopy, labs, specialist visits) must be in the case as its own report or images. A mention in the referral is not the result.",
+    "why": "Šetří opakovaná vyšetření a MDT vidí původní nálezy; zvlášť cenné je zobrazení provedené před zavedením biliárního stentu (ESMO 2b [IV, A]).",
+    "why_en": "Avoids repeating examinations and lets the MDT see the original findings; imaging done before any biliary stent is especially valuable (ESMO 2b [IV, A]).",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc",
+     "dicom",
+     "jpg",
+     "jpeg",
+     "png",
+     "tiff"
+    ],
+    "requires": [
+     {
+      "kind": "mentioned_exams_received"
+     }
+    ]
+   },
+   {
+    "id": "bloods",
+    "type": "step",
+    "label": "Odběry – bilirubin, jaterní testy, KO",
+    "label_en": "Bloods – bilirubin, liver tests, blood count",
+    "phase": "diagnostics",
+    "owner_role": "coordinator",
+    "sla_days": 3,
+    "completion": "evidence",
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ],
+    "blocking": false,
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "description": "Bilirubin, jaterní testy, krevní obraz, koagulace a glykemie na začátku cesty – spolu s CT.",
+    "description_en": "Bilirubin, liver tests, blood count, clotting and glucose at the start of the pathway, alongside the CT.",
+    "why": "Ikterus a cholestáza mění postup (drenáž) i výklad CA 19-9. Struktura: NHS timed HPB pathway.",
+    "why_en": "Jaundice and cholestasis change the next steps (drainage) and how CA 19-9 is read. Structure: NHS timed HPB pathway."
+   },
+   {
+    "id": "ct",
+    "type": "step",
+    "label": "CT – pankreatický protokol + CT hrudníku",
+    "label_en": "CT pancreatic protocol + chest CT",
+    "phase": "diagnostics",
+    "owner_role": "radiology",
+    "sla_days": 7,
+    "completion": "evidence",
+    "description": "Vícefázové CT břicha v pankreatickém protokolu a CT hrudníku: staging a vztah nádoru k cévám (VP, VMS, truncus coeliacus, AMS, a. hepatica communis).",
+    "description_en": "Multiphase pancreatic-protocol CT of the abdomen plus chest CT: staging and the tumour's relation to the vessels (PV, SMV, coeliac trunk, SMA, common hepatic artery).",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: „Před zahájením onkologické léčby musí být proveden staging onemocnění.“ Resekabilita se definuje vztahem nádoru k cévám.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: staging is mandatory before any oncological treatment; resectability is defined by the tumour's relation to the vessels.",
+    "accepted_formats": [
+     "dicom",
+     "pdf",
+     "docx",
+     "doc",
+     "jpg",
+     "jpeg",
+     "png",
+     "tiff"
+    ],
+    "requires": [
+     {
+      "kind": "exam",
+      "exam_type": "ct"
+     }
+    ]
+   },
+   {
+    "id": "biliary",
+    "type": "step",
+    "label": "Drenáž žlučových cest (ERCP stent) – při ikteru",
+    "label_en": "Biliary drainage (ERCP stent) – if jaundiced",
+    "phase": "diagnostics",
+    "owner_role": "endoscopy",
+    "sla_days": 5,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "Při obstrukčním ikteru drenáž (ERCP stent, příp. PTD) – před interpretací CA 19-9 a před neoadjuvancí.",
+    "description_en": "Drainage for obstructive jaundice (ERCP stent, or PTD) – before CA 19-9 is interpreted and before neoadjuvant treatment.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: u všech pacientů je nutné zajistit drenáž žlučových cest (podpůrná léčba). Cholestáza falešně zvyšuje CA 19-9.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: biliary drainage is part of the supportive care every patient needs. Cholestasis falsely raises CA 19-9.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ]
+   },
+   {
+    "id": "labs",
+    "type": "step",
+    "label": "CA 19-9",
+    "label_en": "CA 19-9",
+    "phase": "diagnostics",
+    "owner_role": "coordinator",
+    "sla_days": 5,
+    "completion": "evidence",
+    "description": "CA 19-9 – nejlépe po drenáži, při normálním bilirubinu (jinak je hodnota falešně vyšší).",
+    "description_en": "CA 19-9 – ideally after drainage with a normal bilirubin (otherwise the value is falsely high).",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: „zohledněna by měla být i hodnota CA 19-9 a celkový stav pacienta“. CA 19-9 > 500 U/ml je biologické kritérium hraniční resekability (IAP 2017).",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: CA 19-9 and the patient's condition must be taken into account. CA 19-9 > 500 U/ml is the biological criterion of borderline resectability (IAP 2017).",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "lab",
+      "analyte": "CA 19-9",
+      "max_age_days": 30
+     }
+    ]
+   },
+   {
+    "id": "performance_status",
+    "type": "step",
+    "label": "Celkový stav (ECOG), komorbidity",
+    "label_en": "Performance status (ECOG), comorbidities",
+    "phase": "diagnostics",
+    "owner_role": "koc_doctor",
+    "sla_days": 3,
+    "completion": "evidence",
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ],
+    "blocking": true,
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "description": "Výkonnostní stav ECOG/PS a komorbidity zapsané lékařem (ambulantní zpráva, epikríza).",
+    "description_en": "ECOG / performance status and comorbidities recorded by a doctor (outpatient report, discharge summary).",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: o léčbě rozhoduje i celkový stav; paliativní systémová léčba je doporučena při PS 0–2. ECOG ≥ 2 je podmíněné kritérium hraniční resekability (IAP 2017).",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: the patient's condition is part of the decision; palliative systemic therapy is recommended for PS 0–2. ECOG ≥ 2 is the conditional criterion of borderline resectability (IAP 2017)."
+   },
+   {
+    "id": "resectability",
+    "type": "decision",
+    "label": "Resekabilita (radiologické hodnocení)",
+    "label_en": "Resectability (radiological assessment)",
+    "phase": "diagnostics",
+    "owner_role": "radiology",
+    "sla_days": 2,
+    "completion": "branch",
+    "action": "Zvolit kategorii",
+    "description": "Radiolog / lékař KOC zařadí nález podle CT (vztah k cévám), CA 19-9 a ECOG do jedné ze 4 kategorií. Řídí, která další vyšetření jsou potřeba; MDT kategorii potvrdí nebo změní.",
+    "description_en": "The radiologist / KOC doctor classifies the case from the CT (vessel contact), CA 19-9 and ECOG into one of the 4 categories. It decides which further exams are needed; the MDT confirms or changes it.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: kapitola je členěna podle kategorií 7.1 resekabilní a hraničně resekabilní, 7.2 lokálně pokročilý, 7.3 metastatický. Anatomická kritéria: NCCN; hraniční resekabilita: IAP 2017.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: the chapter is organised by 7.1 resectable and borderline, 7.2 locally advanced, 7.3 metastatic. Anatomical criteria: NCCN; borderline: IAP 2017.",
+    "branches": [
+     {
+      "key": "resectable",
+      "label": "Resekabilní",
+      "label_en": "Resectable"
+     },
+     {
+      "key": "borderline",
+      "label": "Hraničně resekabilní",
+      "label_en": "Borderline resectable"
+     },
+     {
+      "key": "locally_advanced",
+      "label": "Lokálně pokročilý",
+      "label_en": "Locally advanced"
+     },
+     {
+      "key": "metastatic",
+      "label": "Metastatický",
+      "label_en": "Metastatic"
+     }
+    ]
+   },
+   {
+    "id": "staging_laparoscopy",
+    "type": "step",
+    "label": "Stagingová laparoskopie",
+    "label_en": "Staging laparoscopy",
+    "phase": "diagnostics",
+    "owner_role": "koc_doctor",
+    "sla_days": 10,
+    "completion": "evidence",
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ],
+    "blocking": false,
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "description": "U resekabilního / hraničně resekabilního nálezu při nádoru > 3 cm, ascitu nebo CA 19-9 > 500 U/ml bez cholestázy – vyloučení peritoneálního rozsevu.",
+    "description_en": "For resectable / borderline disease with a tumour > 3 cm, ascites or CA 19-9 > 500 U/ml without cholestasis – to rule out peritoneal spread.",
+    "why": "Není v kapitole ČOS (strukturní zdroj AWMF S3 2024) – proto není blokující.",
+    "why_en": "Not in the ČOS chapter (structure source: AWMF S3 2024) – so it does not block."
+   },
+   {
+    "id": "mri_liver",
+    "type": "step",
+    "label": "MR jater (před operací)",
+    "label_en": "Liver MRI (before surgery)",
+    "phase": "diagnostics",
+    "owner_role": "radiology",
+    "sla_days": 10,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "MR jater s difuzí u potenciálně resekabilního nálezu – vyloučení drobných jaterních metastáz před operací.",
+    "description_en": "Liver MRI with diffusion for potentially resectable disease – to rule out small liver metastases before surgery.",
+    "why": "ESMO 2023: MR jater před operací k vyloučení malých metastáz, které CT nezachytí [III, B]; MR může nahradit CT, je-li CT nejednoznačné nebo kontraindikované [IV, C]. Volitelné: potřeba, zvažuje-li se resekce nebo je CT nejasné.",
+    "why_en": "ESMO 2023: liver MRI before surgery to exclude small liver metastases missed by CT [III, B]; MRI can replace CT when CT is inconclusive or contraindicated [IV, C]. Optional: needed when resection is considered or the CT is equivocal.",
+    "accepted_formats": [
+     "dicom",
+     "pdf",
+     "docx",
+     "doc",
+     "jpg",
+     "jpeg",
+     "png",
+     "tiff"
+    ],
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ]
+   },
+   {
+    "id": "pet_ct",
+    "type": "step",
+    "label": "PET-CT (lokalizované onemocnění)",
+    "label_en": "PET-CT (localized disease)",
+    "phase": "diagnostics",
+    "owner_role": "radiology",
+    "sla_days": 10,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "Zpráva z celotělového FDG PET-CT. Jen ve vybraných případech: staging lokalizovaného onemocnění, objasnění ložisek suspektních z metastáz na CT/MR nebo vysoké CA 19-9 bez viditelných metastáz.",
+    "description_en": "Report of a whole-body FDG PET-CT. Only in selected cases: staging of localised disease, clarifying lesions suspicious for metastases on CT/MRI, or a high CA 19-9 without visible metastases.",
+    "why": "Volitelné u lokalizovaného onemocnění před operací, radioterapií nebo systémovou léčbou (NICE NG85).",
+    "why_en": "Optional for localized disease before surgery, radiotherapy or systemic therapy (NICE NG85).",
+    "accepted_formats": [
+     "dicom",
+     "pdf",
+     "docx",
+     "doc",
+     "jpg",
+     "jpeg",
+     "png",
+     "tiff"
+    ],
+    "requires": [
+     {
+      "kind": "exam",
+      "exam_type": "pet_ct"
+     }
+    ]
+   },
+   {
+    "id": "anticoag",
+    "type": "step",
+    "label": "Vysazení antikoagulancií před biopsií",
+    "label_en": "Anticoagulants stopped before biopsy",
+    "phase": "diagnostics",
+    "owner_role": "koc_doctor",
+    "sla_days": 2,
+    "completion": "evidence",
+    "description": "Záznam (zpráva, protokol výkonu), že antikoagulancia byla před EUS biopsií vysazena: přímá perorální antikoagulancia (apixaban, rivaroxaban, edoxaban, dabigatran) alespoň 48 h předem, warfarin 5 dní předem, s datem poslední dávky. Krok se přeskočí, pokud pacient antikoagulancia neužívá.",
+    "description_en": "A record (letter or procedure report) that anticoagulants were stopped before the EUS biopsy: direct oral anticoagulants (apixaban, rivaroxaban, edoxaban, dabigatran) at least 48 h before, warfarin 5 days before, with the date of the last dose. Skipped if the patient takes no anticoagulant.",
+    "why": "Bezpečnost pacienta, nejde o položku ESMO: EUS-FNB je výkon s vysokým rizikem krvácení; doporučení ESGE/BSG vysazují DOAC nejméně 48 h předem (dabigatran při snížené funkci ledvin déle) a warfarin 5 dní předem.",
+    "why_en": "Patient safety, not an ESMO item: EUS-FNB is a high-bleeding-risk procedure; ESGE/BSG guidance stops DOACs at least 48 h before (dabigatran longer with reduced renal function) and warfarin 5 days before.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "precaution",
+      "precaution": "anticoagulant_paused"
+     }
+    ],
+    "skip_if": [
+     {
+      "kind": "no_anticoagulant"
+     }
+    ]
+   },
+   {
+    "id": "biopsy",
+    "type": "step",
+    "label": "EUS-FNB (příp. biopsie metastázy)",
+    "label_en": "EUS-FNB (or biopsy of a metastasis)",
+    "phase": "diagnostics",
+    "owner_role": "endoscopy",
+    "sla_days": 7,
+    "completion": "evidence",
+    "description": "Bioptická verifikace pod EUS, u metastatického onemocnění raději biopsie metastázy (játra).",
+    "description_en": "EUS-guided biopsy; in metastatic disease a biopsy of a metastasis (liver) is preferred.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: „CHT není možné zahájit bez histologické, ev. cytologické verifikace.“ Po 2 nediagnostických biopsiích lze dle ESMO rozhodnout na MDT. Před primární resekcí není biopsie nutná.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: chemotherapy cannot start without histological or cytological verification. After 2 non-diagnostic biopsies the MDT may decide (ESMO). Not mandatory before upfront resection.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "exam",
+      "exam_type": "eus_fnb"
+     }
+    ]
+   },
+   {
+    "id": "histology",
+    "type": "step",
+    "label": "Histologie / cytologie – potvrzená diagnóza",
+    "label_en": "Histology / cytology – confirmed diagnosis",
+    "phase": "diagnostics",
+    "owner_role": "pathology",
+    "sla_days": 5,
+    "completion": "evidence",
+    "description": "Patologická zpráva (histologie nebo cytologie) z biopsie, která potvrzuje diagnózu – typicky duktální adenokarcinom pankreatu – s typem nádoru, gradem a původem vzorku. Nález „materiál nedostatečný“ nebo „suspektní“ není potvrzená diagnóza.",
+    "description_en": "Pathology report (histology or cytology) of the biopsy confirming the diagnosis – typically pancreatic ductal adenocarcinoma – with tumour type, grade and specimen origin. A report saying 'insufficient material' or 'suspicious' is not a confirmed diagnosis.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: histologická / cytologická verifikace je podmínkou systémové léčby (neoadjuvance, indukce, paliace).",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: histological / cytological verification is required before systemic therapy (neoadjuvant, induction, palliative).",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "diagnosis",
+      "status": "confirmed"
+     }
+    ]
+   },
+   {
+    "id": "germline",
+    "type": "step",
+    "label": "Genetická konzultace (zárodečné BRCA1/2, PALB2)",
+    "label_en": "Genetic counselling (germline BRCA1/2, PALB2)",
+    "phase": "diagnostics",
+    "owner_role": "koc_doctor",
+    "sla_days": 28,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "Výsledek zárodečného (z krve) genetického vyšetření BRCA1/BRCA2 – často panel včetně PALB2, ATM – nebo zpráva z klinické genetiky. Somatický test z nádoru se zde nepočítá. Nezdržuje MDT – výsledek často trvá týdny.",
+    "description_en": "Result of a germline (blood) genetic test for BRCA1/BRCA2 – often a panel including PALB2 and ATM – or a clinical genetics report. A somatic tumour test does not count here. Does not hold up the MDT – results often take weeks.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: „vstupní genetická konzultace je indikována u všech pacientů s nově diagnostikovaným karcinomem pankreatu“. Neblokuje MDT.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: genetic counselling is indicated for every patient newly diagnosed with pancreatic cancer. Does not block the MDT.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ]
+   },
+   {
+    "id": "molecular",
+    "type": "step",
+    "label": "MSI (IHC), NTRK, somatické BRCA1/2 a KRAS, příp. NGS",
+    "label_en": "MSI (IHC), NTRK, somatic BRCA1/2 and KRAS, NGS if indicated",
+    "phase": "diagnostics",
+    "owner_role": "pathology",
+    "sla_days": 21,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "U metastatického onemocnění a pacienta schopného cílené léčby; indikace NGS přes molekulární tumor board.",
+    "description_en": "For metastatic disease in a patient fit for targeted therapy; NGS indication via the molecular tumour board.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: u vybraných pacientů s metastatickým onemocněním únosných cílené terapie MSI, NTRK, somatické BRCA1/2 a KRAS.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: for selected metastatic patients fit for targeted therapy – MSI, NTRK, somatic BRCA1/2 and KRAS.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ]
+   },
+   {
+    "id": "nutrition",
+    "type": "step",
+    "label": "Nutriční podpora, pankreatické enzymy, diabetes",
+    "label_en": "Nutrition, pancreatic enzymes, diabetes",
+    "phase": "supportive",
+    "owner_role": "coordinator",
+    "sla_days": 14,
+    "completion": "manual",
+    "blocking": false,
+    "action": "Zajištěno",
+    "description": "Nutriční screening (úbytek hmotnosti, BMI, příjem) a podle potřeby nutriční terapeut a substituce pankreatických enzymů při exokrinní insuficienci.",
+    "description_en": "Nutritional screening (weight loss, BMI, intake) and, if needed, a dietitian and pancreatic enzyme replacement for exocrine insufficiency.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: podpůrná léčba (nutrice, enzymy, kompenzace diabetu) u všech pacientů; neblokuje MDT.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: supportive care (nutrition, enzymes, diabetes control) for every patient; does not block the MDT."
+   },
+   {
+    "id": "pain",
+    "type": "step",
+    "label": "Algeziolog",
+    "label_en": "Pain specialist",
+    "phase": "supportive",
+    "owner_role": "coordinator",
+    "sla_days": 14,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "Zpráva z algeziologické ambulance: zhodnocení bolesti a plán analgezie (např. opioidy, neurolýza plexus coeliacus). Dopis PL, který bolest nebo analgetika jen zmiňuje, se nepočítá.",
+    "description_en": "Report from a pain clinic: pain assessment and analgesic plan (e.g. opioids, coeliac plexus neurolysis). A GP letter that only mentions pain or painkillers does not count.",
+    "why": "Bolest je u karcinomu pankreatu častá; podpůrná péče podle ESMO zahrnuje časnou specializovanou léčbu bolesti včetně neurolýzy plexus coeliacus u refrakterní bolesti.",
+    "why_en": "Pain is frequent in pancreatic cancer; ESMO supportive care includes early specialist pain management, including coeliac plexus neurolysis for refractory pain.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "exam",
+      "exam_type": "pain_consult"
+     }
+    ]
+   },
+   {
+    "id": "psycho",
+    "type": "step",
+    "label": "Psychoonkolog",
+    "label_en": "Psycho-oncology",
+    "phase": "supportive",
+    "owner_role": "coordinator",
+    "sla_days": 14,
+    "completion": "evidence",
+    "blocking": false,
+    "description": "Zpráva psychologa nebo psychoonkologa (psychologické vyšetření, plán podpory).",
+    "description_en": "Report from a psychologist or psycho-oncologist (psychological assessment, support plan).",
+    "why": "Psychosociální podpora je součástí podpůrné a paliativní péče podle ESMO.",
+    "why_en": "Psychosocial support is part of ESMO's supportive and palliative care.",
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "requires": [
+     {
+      "kind": "exam",
+      "exam_type": "psych_consult"
+     }
+    ]
+   },
+   {
+    "id": "outcome_resectable",
+    "type": "step",
+    "label": "Závěr: Resekabilní",
+    "label_en": "Conclusion: Resectable",
+    "phase": "mdt",
+    "owner_role": "mdt",
+    "sla_days": 0,
+    "completion": "auto",
+    "description": "Konečný stav diagnostické cesty potvrzený MDT. Kritéria: Bez kontaktu s arteriemi (truncus coeliacus, AMS, a. hepatica communis); VMS/VP bez kontaktu nebo ≤ 180° bez nepravidelnosti kontury. Bez vzdálených metastáz.",
+    "description_en": "Final state of the diagnostic pathway, confirmed by the MDT. Criteria: No arterial contact (coeliac trunk, SMA, common hepatic artery); SMV/PV no contact or ≤ 180° without contour irregularity. No distant metastases.",
+    "why": "Další postup: primární resekce (u vysokého rizika – CA 19-9 > 500, velký nádor, bolest, hubnutí – zvážit neoadjuvanci), poté adjuvance mFOLFIRINOX. Zdroje: ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023.",
+    "why_en": "Next: upfront resection (consider neoadjuvant treatment for high-risk features – CA 19-9 > 500, large tumour, pain, weight loss), then adjuvant mFOLFIRINOX. Sources: ČOS Blue Book, 32nd edition (2026), ch. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023."
+   },
+   {
+    "id": "outcome_borderline",
+    "type": "step",
+    "label": "Závěr: Hraničně resekabilní",
+    "label_en": "Conclusion: Borderline resectable",
+    "phase": "mdt",
+    "owner_role": "mdt",
+    "sla_days": 0,
+    "completion": "auto",
+    "description": "Konečný stav diagnostické cesty potvrzený MDT. Kritéria: Anatomicky: VMS/VP > 180° nebo ≤ 180° s nepravidelností / trombózou, rekonstruovatelné; kontakt s a. hepatica communis bez šíření na truncus či bifurkaci; AMS ≤ 180°; (tělo/kauda: truncus ≤ 180°). Biologicky (IAP): CA 19-9 > 500 U/ml nebo uzliny prokázané biopsií/PET. Podmíněně: ECOG ≥ 2.",
+    "description_en": "Final state of the diagnostic pathway, confirmed by the MDT. Criteria: Anatomical: SMV/PV > 180° or ≤ 180° with irregularity / thrombosis, reconstructible; common hepatic artery contact without extension to the coeliac trunk or bifurcation; SMA ≤ 180°; (body/tail: coeliac trunk ≤ 180°). Biological (IAP): CA 19-9 > 500 U/ml or nodes proven by biopsy/PET. Conditional: ECOG ≥ 2.",
+    "why": "Další postup: histologie, neoadjuvantní chemoterapie (mFOLFIRINOX / gemcitabin + nab-paklitaxel), restaging CT + CA 19-9, MDT o resekci. Zdroje: ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023.",
+    "why_en": "Next: histology, neoadjuvant chemotherapy (mFOLFIRINOX / gemcitabine + nab-paclitaxel), restaging CT + CA 19-9, MDT on resection. Sources: ČOS Blue Book, 32nd edition (2026), ch. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023."
+   },
+   {
+    "id": "outcome_locally_advanced",
+    "type": "step",
+    "label": "Závěr: Lokálně pokročilý",
+    "label_en": "Conclusion: Locally advanced",
+    "phase": "mdt",
+    "owner_role": "mdt",
+    "sla_days": 0,
+    "completion": "auto",
+    "description": "Konečný stav diagnostické cesty potvrzený MDT. Kritéria: Bez vzdálených metastáz, ale AMS nebo truncus coeliacus > 180°, nerekonstruovatelná VMS/VP, kontakt s aortou nebo první jejunální větví AMS.",
+    "description_en": "Final state of the diagnostic pathway, confirmed by the MDT. Criteria: No distant metastases, but SMA or coeliac trunk > 180°, unreconstructible SMV/PV, contact with the aorta or the first jejunal SMA branch.",
+    "why": "Další postup: histologie, indukční chemoterapie, restaging; při odpovědi MDT zvažuje konverzní resekci, jinak (chemo)radioterapie / pokračování léčby. Zdroje: ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023.",
+    "why_en": "Next: histology, induction chemotherapy, restaging; with a response the MDT considers conversion surgery, otherwise (chemo)radiotherapy / continued treatment. Sources: ČOS Blue Book, 32nd edition (2026), ch. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023."
+   },
+   {
+    "id": "outcome_metastatic",
+    "type": "step",
+    "label": "Závěr: Metastatický",
+    "label_en": "Conclusion: Metastatic",
+    "phase": "mdt",
+    "owner_role": "mdt",
+    "sla_days": 0,
+    "completion": "auto",
+    "description": "Konečný stav diagnostické cesty potvrzený MDT. Kritéria: Vzdálené metastázy (játra, peritoneum, plíce, nonregionální uzliny) nebo maligní ascites / pozitivní cytologie z laváže.",
+    "description_en": "Final state of the diagnostic pathway, confirmed by the MDT. Criteria: Distant metastases (liver, peritoneum, lungs, non-regional nodes) or malignant ascites / positive peritoneal cytology.",
+    "why": "Další postup: histologie (biopsie metastázy), paliativní systémová léčba dle PS (0–2), zárodečné BRCA (udržovací olaparib), MSI / NTRK; podpůrná péče. Zdroje: ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023.",
+    "why_en": "Next: histology (biopsy of a metastasis), palliative systemic therapy by PS (0–2), germline BRCA (olaparib maintenance), MSI / NTRK; supportive care. Sources: ČOS Blue Book, 32nd edition (2026), ch. 7 – C25; NCCN Pancreatic Adenocarcinoma 2025; IAP 2017; ESMO 2023."
+   },
+   {
+    "id": "handover",
+    "type": "step",
+    "label": "Handover potvrzen lékařem",
+    "label_en": "Handover validated by doctor",
+    "phase": "mdt",
+    "owner_role": "koc_doctor",
+    "sla_days": 2,
+    "completion": "manual",
+    "action": "Potvrdit handover",
+    "description": "Lékař KOC zkontroluje handover a potvrdí, že případ je připraven na MDT.",
+    "description_en": "The KOC doctor checks the handover and confirms the case is ready for the MDT.",
+    "why": "Na MDT jde jen úplný a ověřený podklad: diagnóza, staging, výkonnostní stav (ECOG) a komorbidity. ESMO staví volbu léčby na těchto údajích.",
+    "why_en": "Only a complete, checked dossier goes to the MDT: diagnosis, stage, performance status (ECOG) and comorbidities. ESMO bases the choice of treatment on these."
+   },
+   {
+    "id": "mdt",
+    "type": "mdt",
+    "label": "Léčebné MDT",
+    "label_en": "Treatment MDT",
+    "phase": "mdt",
+    "owner_role": "mdt",
+    "sla_days": 7,
+    "completion": "manual",
+    "action": "Zapsat závěr MDT",
+    "description": "MDT potvrdí (nebo změní) kategorii resekability a zapíše diagnózu, závěr a doporučení léčby.",
+    "description_en": "The MDT confirms (or changes) the resectability category and records the diagnosis, conclusion and treatment advice.",
+    "why": "ČOS Modrá kniha, 32. vydání (2026), kap. 7 – C25: na MDT patří všichni pacienti s lokalizovaným karcinomem pankreatu a metastatičtí pacienti, u nichž se předpokládá kombinovaná léčba, NGS nebo multioborový přístup.",
+    "why_en": "ČOS Blue Book, 32nd edition (2026), ch. 7 – C25: every patient with localized pancreatic cancer, and metastatic patients expected to need combined therapy, NGS or a multidisciplinary approach, goes to the MDT."
+   },
+   {
+    "id": "decision",
+    "type": "decision",
+    "label": "Rozhodnutí o léčbě",
+    "label_en": "Decision to treat",
+    "phase": "mdt",
+    "owner_role": "mdt",
+    "sla_days": 0,
+    "completion": "branch",
+    "multi": true,
+    "description": "MDT vybere jeden nebo více léčebných plánů (sledování, paliace, chemo, radio, operace).",
+    "description_en": "The MDT picks one or more treatment plans (watch, palliative, chemo, radio, surgery).",
+    "why": "Závěr MDT musí být zaznamenán jako konkrétní plán, aby ho koordinátor léčby (K2) mohl zajistit.",
+    "why_en": "The MDT's conclusion has to be recorded as a concrete plan so the treatment coordinator (K2) can carry it out.",
+    "branches": [
+     {
+      "key": "active_monitoring",
+      "label": "Aktivní sledování",
+      "label_en": "Active monitoring"
+     },
+     {
+      "key": "palliative",
+      "label": "Paliativní péče",
+      "label_en": "Palliative care"
+     },
+     {
+      "key": "chemotherapy",
+      "label": "Chemoterapie",
+      "label_en": "Chemotherapy"
+     },
+     {
+      "key": "radiotherapy",
+      "label": "Radioterapie",
+      "label_en": "Radiotherapy"
+     },
+     {
+      "key": "surgery",
+      "label": "Chirurgická léčba",
+      "label_en": "Surgery"
+     }
+    ]
+   },
+   {
+    "id": "plan_active_monitoring",
+    "type": "treatment",
+    "label": "Aktivní sledování",
+    "label_en": "Active monitoring",
+    "phase": "treatment",
+    "owner_role": "k2_coordinator",
+    "completion": "branch",
+    "description": "Zvolená léčba: Aktivní sledování.",
+    "description_en": "Chosen treatment: Active monitoring.",
+    "why": "Větev otevře jen rozhodnutí MDT.",
+    "why_en": "Only the MDT decision opens this branch."
+   },
+   {
+    "id": "plan_palliative",
+    "type": "treatment",
+    "label": "Paliativní péče",
+    "label_en": "Palliative care",
+    "phase": "treatment",
+    "owner_role": "k2_coordinator",
+    "completion": "branch",
+    "description": "Zvolená léčba: Paliativní péče.",
+    "description_en": "Chosen treatment: Palliative care.",
+    "why": "Větev otevře jen rozhodnutí MDT.",
+    "why_en": "Only the MDT decision opens this branch."
+   },
+   {
+    "id": "plan_chemotherapy",
+    "type": "treatment",
+    "label": "Chemoterapie",
+    "label_en": "Chemotherapy",
+    "phase": "treatment",
+    "owner_role": "k2_coordinator",
+    "completion": "branch",
+    "description": "Zvolená léčba: Chemoterapie.",
+    "description_en": "Chosen treatment: Chemotherapy.",
+    "why": "Větev otevře jen rozhodnutí MDT.",
+    "why_en": "Only the MDT decision opens this branch."
+   },
+   {
+    "id": "plan_radiotherapy",
+    "type": "treatment",
+    "label": "Radioterapie",
+    "label_en": "Radiotherapy",
+    "phase": "treatment",
+    "owner_role": "k2_coordinator",
+    "completion": "branch",
+    "description": "Zvolená léčba: Radioterapie.",
+    "description_en": "Chosen treatment: Radiotherapy.",
+    "why": "Větev otevře jen rozhodnutí MDT.",
+    "why_en": "Only the MDT decision opens this branch."
+   },
+   {
+    "id": "plan_surgery",
+    "type": "treatment",
+    "label": "Chirurgická léčba",
+    "label_en": "Surgery",
+    "phase": "treatment",
+    "owner_role": "k2_coordinator",
+    "completion": "branch",
+    "description": "Zvolená léčba: Chirurgická léčba.",
+    "description_en": "Chosen treatment: Surgery.",
+    "why": "Větev otevře jen rozhodnutí MDT.",
+    "why_en": "Only the MDT decision opens this branch."
+   },
+   {
+    "id": "feedback",
+    "type": "feedback",
+    "label": "Výsledek PL + revizní lékař",
+    "label_en": "Result to GP + review doctor",
+    "phase": "after_mdt",
+    "owner_role": "coordinator",
+    "sla_days": 2,
+    "completion": "manual",
+    "action": "Odeslat výsledek",
+    "description": "Koordinátor odešle závěr MDT referujícímu lékaři a reviznímu lékaři.",
+    "description_en": "The coordinator sends the MDT result to the referring doctor and the review doctor.",
+    "why": "Uzavírá smyčku s referujícím lékařem: ví, co bylo rozhodnuto a co dál.",
+    "why_en": "Closes the loop with the referring doctor: they learn what was decided and what happens next."
+   },
+   {
+    "id": "handover_k2",
+    "type": "handover",
+    "label": "Předání koordinátorovi léčby (K2)",
+    "label_en": "Handover to treatment coordinator (K2)",
+    "phase": "after_mdt",
+    "owner_role": "coordinator",
+    "sla_days": 3,
+    "completion": "manual",
+    "action": "Předat K2",
+    "description": "Případ se předává koordinátorovi léčby (K2) k realizaci plánu.",
+    "description_en": "The case is handed to the treatment coordinator (K2) to carry out the plan.",
+    "why": "Diagnostická cesta končí předáním; léčbu vede koordinátor léčby.",
+    "why_en": "The diagnostic pathway ends with the handover; treatment is run by the treatment coordinator."
+   },
+   {
+    "id": "closed",
+    "type": "end",
+    "label": "Uzavřeno",
+    "label_en": "Closed",
+    "phase": "after_mdt",
+    "owner_role": "coordinator",
+    "completion": "auto",
+    "description": "Cesta je uzavřená – diagnostika a rozhodnutí jsou hotové.",
+    "description_en": "The pathway is closed – diagnostics and the decision are done.",
+    "why": "Konec diagnostické cesty.",
+    "why_en": "End of the diagnostic pathway."
+   }
+  ],
+  "edges": [
+   {
+    "source": "referral",
+    "target": "triage"
+   },
+   {
+    "source": "triage",
+    "target": "prior_reports"
+   },
+   {
+    "source": "triage",
+    "target": "bloods"
+   },
+   {
+    "source": "triage",
+    "target": "ct"
+   },
+   {
+    "source": "triage",
+    "target": "performance_status"
+   },
+   {
+    "source": "triage",
+    "target": "germline"
+   },
+   {
+    "source": "triage",
+    "target": "nutrition"
+   },
+   {
+    "source": "triage",
+    "target": "pain"
+   },
+   {
+    "source": "triage",
+    "target": "psycho"
+   },
+   {
+    "source": "bloods",
+    "target": "biliary"
+   },
+   {
+    "source": "bloods",
+    "target": "labs"
+   },
+   {
+    "source": "biliary",
+    "target": "labs"
+   },
+   {
+    "source": "ct",
+    "target": "resectability"
+   },
+   {
+    "source": "labs",
+    "target": "resectability"
+   },
+   {
+    "source": "performance_status",
+    "target": "resectability"
+   },
+   {
+    "source": "resectability",
+    "target": "staging_laparoscopy",
+    "branch": "resectable"
+   },
+   {
+    "source": "resectability",
+    "target": "staging_laparoscopy",
+    "branch": "borderline"
+   },
+   {
+    "source": "resectability",
+    "target": "mri_liver",
+    "branch": "resectable"
+   },
+   {
+    "source": "resectability",
+    "target": "mri_liver",
+    "branch": "borderline"
+   },
+   {
+    "source": "resectability",
+    "target": "pet_ct",
+    "branch": "resectable"
+   },
+   {
+    "source": "resectability",
+    "target": "pet_ct",
+    "branch": "borderline"
+   },
+   {
+    "source": "resectability",
+    "target": "pet_ct",
+    "branch": "locally_advanced"
+   },
+   {
+    "source": "resectability",
+    "target": "anticoag"
+   },
+   {
+    "source": "prior_reports",
+    "target": "anticoag"
+   },
+   {
+    "source": "anticoag",
+    "target": "biopsy"
+   },
+   {
+    "source": "resectability",
+    "target": "biopsy"
+   },
+   {
+    "source": "biopsy",
+    "target": "histology"
+   },
+   {
+    "source": "resectability",
+    "target": "molecular",
+    "branch": "metastatic"
+   },
+   {
+    "source": "histology",
+    "target": "molecular"
+   },
+   {
+    "source": "histology",
+    "target": "handover"
+   },
+   {
+    "source": "staging_laparoscopy",
+    "target": "handover"
+   },
+   {
+    "source": "mri_liver",
+    "target": "handover"
+   },
+   {
+    "source": "pet_ct",
+    "target": "handover"
+   },
+   {
+    "source": "molecular",
+    "target": "handover"
+   },
+   {
+    "source": "germline",
+    "target": "handover"
+   },
+   {
+    "source": "handover",
+    "target": "mdt"
+   },
+   {
+    "source": "decision",
+    "target": "plan_active_monitoring",
+    "branch": "active_monitoring"
+   },
+   {
+    "source": "decision",
+    "target": "plan_palliative",
+    "branch": "palliative"
+   },
+   {
+    "source": "decision",
+    "target": "plan_chemotherapy",
+    "branch": "chemotherapy"
+   },
+   {
+    "source": "decision",
+    "target": "plan_radiotherapy",
+    "branch": "radiotherapy"
+   },
+   {
+    "source": "decision",
+    "target": "plan_surgery",
+    "branch": "surgery"
+   },
+   {
+    "source": "plan_active_monitoring",
+    "target": "feedback"
+   },
+   {
+    "source": "plan_palliative",
+    "target": "feedback"
+   },
+   {
+    "source": "plan_chemotherapy",
+    "target": "feedback"
+   },
+   {
+    "source": "plan_radiotherapy",
+    "target": "feedback"
+   },
+   {
+    "source": "plan_surgery",
+    "target": "feedback"
+   },
+   {
+    "source": "feedback",
+    "target": "handover_k2"
+   },
+   {
+    "source": "handover_k2",
+    "target": "closed"
+   },
+   {
+    "source": "mdt",
+    "target": "outcome_resectable"
+   },
+   {
+    "source": "resectability",
+    "target": "outcome_resectable",
+    "branch": "resectable"
+   },
+   {
+    "source": "outcome_resectable",
+    "target": "decision"
+   },
+   {
+    "source": "mdt",
+    "target": "outcome_borderline"
+   },
+   {
+    "source": "resectability",
+    "target": "outcome_borderline",
+    "branch": "borderline"
+   },
+   {
+    "source": "outcome_borderline",
+    "target": "decision"
+   },
+   {
+    "source": "mdt",
+    "target": "outcome_locally_advanced"
+   },
+   {
+    "source": "resectability",
+    "target": "outcome_locally_advanced",
+    "branch": "locally_advanced"
+   },
+   {
+    "source": "outcome_locally_advanced",
+    "target": "decision"
+   },
+   {
+    "source": "mdt",
+    "target": "outcome_metastatic"
+   },
+   {
+    "source": "resectability",
+    "target": "outcome_metastatic",
+    "branch": "metastatic"
+   },
+   {
+    "source": "outcome_metastatic",
+    "target": "decision"
+   }
+  ]
+ }
+}

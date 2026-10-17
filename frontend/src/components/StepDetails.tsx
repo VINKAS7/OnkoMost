@@ -3,7 +3,7 @@ import { useApp } from "../ctx";
 import type { PathwayNode } from "../types";
 import { Icon } from "./Icon";
 import { FormatChips } from "./Requirements";
-import { Tag } from "./ui";
+import { DOC_COLOR, docState, Tag } from "./ui";
 
 /**
  * The opened view of a pathway step. The canvas shows only the title; here come what the step needs (the same text the
@@ -21,8 +21,8 @@ export function StepDetails({ node, inCase = false }: { node: PathwayNode; inCas
       <div className="row wrap" style={{ gap: 6 }}>
         <Tag color={node.blocking === false ? "gray" : "blue"}>{node.blocking === false ? t("sd.optional") : t("sd.required")}</Tag>
         {evidence && inCase && node.doc_status && (
-          <Tag color={matched ? "green" : node.doc_status === "missing" ? "red" : "gray"}>
-            {matched ? `✓ ${t("sd.matched")}` : t(`doc.${node.doc_status}`)}
+          <Tag color={matched ? "green" : DOC_COLOR[docState(node) ?? ""] ?? "gray"}>
+            {matched ? `✓ ${t("sd.matched")}` : t(`doc.${docState(node)}`)}
           </Tag>
         )}
       </div>

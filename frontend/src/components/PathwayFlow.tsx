@@ -10,6 +10,7 @@ import { useApp } from "../ctx";
 import { useWidth } from "../facts";
 import type { PathwayGraph, PathwayNode } from "../types";
 import { Icon } from "./Icon";
+import { docState } from "./ui";
 
 type Data = { node: PathwayNode; mark?: "added" | "changed"; selected?: boolean; plain: boolean };
 
@@ -25,8 +26,10 @@ export function nodeClass(n: PathwayNode, plain: boolean): { cls: string; dot: s
   }
   if (n.status === "skipped") return { cls: "skipped", dot: "gray" };
   if (n.completion === "evidence") {
-    const ds = n.doc_status ?? "missing";
-    return { cls: ds, dot: ({ have: "green", missing: "red", conflict: "yellow" } as Record<string, string>)[ds] ?? "gray" };
+    // missing: red when the MDT needs it, grey (dashed) when the step is not needed (non-blocking)
+    const ds = docState(n) ?? "missing_needed";
+    return { cls: ds === "missing_needed" ? "missing" : ds === "missing_optional" ? "missing-opt" : ds,
+             dot: ({ have: "green", missing_needed: "red", conflict: "yellow" } as Record<string, string>)[ds] ?? "gray" };
   }
   if (n.type === "decision") return { cls: `decision ${n.status !== "done" && n.conditional ? "conditional" : ""}`, dot: "purple" };
   if (n.type === "mdt") return { cls: "mdt", dot: n.status === "done" ? "green" : "teal" };
@@ -69,7 +72,7 @@ function FlowNode({ data }: NodeProps<Node<Data>>) {
   let status = "", sub = "";
   if (!data.plain) {
     if (n.status === "skipped") status = t("doc.skipped");
-    else if (n.completion === "evidence" && n.doc_status) status = t(`doc.${n.doc_status}`);
+    else if (n.completion === "evidence" && n.doc_status) status = t(`doc.${docState(n)}`);
     else if (n.status === "done") status = t("step.done");
     else if (n.status === "available") status = t("step.todo");
     if (n.completion === "evidence" && n.doc_status === "have" && n.evidence?.[0]) sub = fmtDate(n.evidence[0].date);
@@ -117,7 +120,8 @@ export function FlowLegend({ plain }: { plain?: boolean }) {
   const { t } = useApp();
   const items: [string, string][] = plain
     ? [["orange", t("pw.evidence")], ["purple", t("kind.decision")], ["teal", "MDT"]]
-    : [["green", t("doc.have")], ["red", t("doc.missing")], ["yellow", t("doc.conflict")], ["blue", t("step.todo")], ["purple", t("kind.decision")]];
+    : [["green", t("doc.have")], ["red", t("doc.missing_needed")], ["gray", t("doc.missing_optional")], ["yellow", t("doc.conflict")],
+       ["blue", t("step.todo")], ["purple", t("kind.decision")]];
   return <div className="legend">{items.map(([c, l]) => <span key={l}><span className={`dot ${c}`} />{l}</span>)}</div>;
 }
 

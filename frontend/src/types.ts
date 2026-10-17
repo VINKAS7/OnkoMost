@@ -15,7 +15,7 @@ export type Task = {
 export type CaseSummary = {
   id: number; patient_uuid: string; patient_name: string; rc: string; dob: string | null;
   koc: { id: number; code: string; name: string };
-  pathway: { id: number; name: string; name_en: string; code: string; version: number; version_id: number };
+  pathway: { id: number; name: string; name_en: string; code: string; version: number; version_id: number; label?: string | null };
   suspected_diagnosis: string; referring_doctor: Record<string, string>;
   created_on: string; accepted_on: string | null; mdt_date: string | null; closed_on: string | null;
   decisions: Record<string, { keys: string[]; on: string; by: string }>; treatments: string[];
@@ -44,7 +44,7 @@ export type PathwayNode = {
   conditional?: boolean;
 };
 export type PathwayEdge = { source: string; target: string; label?: string; branch?: string | null };
-export type PathwayGraph = { nodes: PathwayNode[]; edges: PathwayEdge[] };
+export type PathwayGraph = { nodes: PathwayNode[]; edges: PathwayEdge[]; version_label?: string };
 
 export type Finding = {
   key: string; kind: string; title: string; detail: string; title_en?: string; detail_en?: string; node_id: string; owner_role: string; priority: string;
@@ -122,7 +122,7 @@ export type GraphView = {
 export type PathwayInfo = {
   id: number; code: string; name: string; name_en: string; cancer_type: string; icd_codes: string[]; guideline_source: string;
   active_version_id: number | null;
-  versions: { id: number; version: number; status: string; created_by_koc_id: number | null; created_at: string;
+  versions: { id: number; version: number; label?: string | null; status: string; created_by_koc_id: number | null; created_at: string;
               activated_at: string | null }[];
 };
 export type PathwayVersion = { id: number; pathway_id: number; pathway: string; pathway_en: string; icd_codes: string[];

@@ -47,7 +47,7 @@ export default function CasePage() {
                 <h1 style={{ fontSize: 26 }}>{c.patient_name}</h1>
                 <div className="meta" style={{ marginTop: 4 }}>
                   <span>{age(c.dob, c.today)} {t("age.y")} · RČ {c.rc}</span>
-                  <span>{pick(c.pathway.name, c.pathway.name_en)} v{c.pathway.version}</span>
+                  <span>{pick(c.pathway.name, c.pathway.name_en)} v{c.pathway.version}{c.pathway.label && ` · ${c.pathway.label}`}</span>
                   <span>{t("referred")} {fmtDate(c.created_on)} · {c.referring_doctor?.name}</span>
                   {c.mdt_date && <span>MDT {fmtDate(c.mdt_date)}</span>}
                 </div>

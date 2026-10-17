@@ -3,7 +3,7 @@ import { api, fmtDate } from "../../../api";
 import { Icon } from "../../../components/Icon";
 import { FlowLegend, PathwayFlow } from "../../../components/PathwayFlow";
 import { StepDetails } from "../../../components/StepDetails";
-import { DOC_COLOR, Due, Empty } from "../../../components/ui";
+import { DOC_COLOR, docState, Due, Empty } from "../../../components/ui";
 import { useAction, useApp } from "../../../ctx";
 import type { CaseDetail, PathwayNode, Task } from "../../../types";
 import Messages, { type MessagesHandle } from "./Messages";
@@ -108,7 +108,7 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
         <PathwayFlow graph={c.pathway_graph} selectedId={sel} onSelect={setSel} height={700} />
         {node && (
           <div className="block">
-            <div className="spread"><b>{pick(node.label, node.label_en)}</b>{node.doc_status && <span className="st"><span className={`dot ${DOC_COLOR[node.doc_status]}`} />{t(`doc.${node.doc_status}`)}</span>}</div>
+            <div className="spread"><b>{pick(node.label, node.label_en)}</b>{node.doc_status && <span className="st"><span className={`dot ${DOC_COLOR[docState(node)!]}`} />{t(`doc.${docState(node)}`)}</span>}</div>
             <div className="meta" style={{ marginTop: 2 }}>
               <span>{node.owner_name}</span>
               {node.done_on ? <span>{t("pw.doneOn")} {fmtDate(node.done_on)}</span> : node.due_on && <span>{t("pw.due")} {fmtDate(node.due_on)}</span>}
@@ -129,13 +129,13 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
           <div style={{ padding: "6px 10px" }}>
           {evidence.map((n) => (
             <div key={n.id} className="check" onClick={() => setSel(n.id)}>
-              <span className={`dot ${DOC_COLOR[n.doc_status ?? "missing"]}`} />
+              <span className={`dot ${DOC_COLOR[docState(n) ?? "missing_needed"]}`} />
               <div>
                 <div className="small" style={{ fontWeight: 550 }}>{pick(n.label, n.label_en)}{n.blocking === false && <span className="faint" style={{ fontWeight: 400 }}> · {t("pw.optional")}</span>}</div>
                 {n.doc_status === "conflict" && <div className="xs" style={{ color: "var(--yellow)" }}>{t("doc.conflict")}</div>}
                 {n.doc_status === "missing" && !!n.detail?.missing?.length && <div className="xs" style={{ color: "var(--red)" }}>{n.detail.missing.map((m) => m.label).join(", ")}</div>}
               </div>
-              <span className="xs muted">{n.doc_status === "have" && n.evidence?.[0] ? fmtDate(n.evidence[0].date) : t(`doc.${n.doc_status ?? "missing"}`)}</span>
+              <span className="xs muted">{n.doc_status === "have" && n.evidence?.[0] ? fmtDate(n.evidence[0].date) : t(`doc.${docState(n) ?? "missing_needed"}`)}</span>
             </div>
           ))}
           </div>

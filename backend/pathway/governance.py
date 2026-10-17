@@ -44,6 +44,7 @@ def create_draft(pathway_id: int, koc_id: int, graph: dict | None = None, blank:
     with session_scope() as s:
         base = active_version(s, pathway_id)
         g = BLANK_GRAPH if blank else (graph or base.graph_json)
+        g = {k: x for k, x in g.items() if k != "version_label"}  # a draft is a new version, not the named one
         validate(g)
         last = max(v.version for v in s.get(Pathway, pathway_id).versions)
         v = PathwayVersion(pathway_id=pathway_id, version=last + 1, status="draft", graph_json=g,

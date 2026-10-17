@@ -284,6 +284,9 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
     evidence_nodes = [n.id for n in pg.nodes if n.completion == "evidence"]
     counts = {k: sum(1 for n in evidence_nodes if status[n]["doc_status"] == k)
               for k in ("have", "missing", "conflict", "conditional", "skipped")}
+    # "missing" = needed for the MDT (red); missing in a non-blocking step is counted apart (grey)
+    counts["missing_optional"] = sum(1 for n in evidence_nodes if status[n]["doc_status"] == "missing" and not by_id[n].blocking)
+    counts["missing"] -= counts["missing_optional"]
     return {
         "nodes": status,
         "findings": findings,

@@ -55,7 +55,7 @@ export default function Pathways() {
             <div className="crumbs">
               <span>{pick(p.name, p.name_en)}</span>
               <Icon name="chevron" />
-              <span className="muted" style={{ fontWeight: 500 }}>v{version.version}</span>
+              <span className="muted" style={{ fontWeight: 500 }}>v{version.version}{version.graph.version_label && ` · ${version.graph.version_label}`}</span>
             </div>
             <Tag color={STATUS_COLOR[version.status]}>{version.status}</Tag>
             <div className="right"><FlowLegend plain /></div>
@@ -106,7 +106,7 @@ export default function Pathways() {
                         <table className="small"><tbody>
                           {[...p.versions].reverse().map((v) => (
                             <tr key={v.id} style={{ cursor: "pointer", background: v.id === vid ? "var(--accent-soft)" : undefined }} onClick={() => setVid(v.id)}>
-                              <td><b>v{v.version}</b></td><td><Tag color={STATUS_COLOR[v.status]}>{v.status}</Tag></td>
+                              <td><b>v{v.version}</b>{v.label && <div className="xs muted">{v.label}</div>}</td><td><Tag color={STATUS_COLOR[v.status]}>{v.status}</Tag></td>
                               <td className="muted">{v.created_by_koc_id ? kocs.find((k) => k.id === v.created_by_koc_id)?.code : "seed"}</td>
                               <td className="muted">{fmtDate(v.activated_at ?? v.created_at)}</td>
                             </tr>

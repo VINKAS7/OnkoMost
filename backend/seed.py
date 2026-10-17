@@ -121,6 +121,8 @@ def seed(clock: date | None = None) -> None:
                 # keep structure of running versions; refresh title/description/formats from seed
                 src = {n["id"]: n for n in pw["graph"]["nodes"]}
                 for v in row.versions:
+                    if (v.graph_json or {}).get("version_label"):  # versions from seed/pathways/versions keep their texts
+                        continue
                     g = copy.deepcopy(v.graph_json)
                     for n in g.get("nodes") or []:
                         snode = src.get(n["id"])
@@ -131,8 +133,31 @@ def seed(clock: date | None = None) -> None:
                             if snode.get(key):
                                 n[key] = snode[key]
                     v.graph_json = g
+        add_versions(s)
         if clock:
             set_today(s, clock)
+
+
+def add_versions(s) -> None:
+    """Extra pathway versions (seed/pathways/versions/*.json: {code, version_label, status, guideline_source?, graph}),
+    added once each – keyed by graph.version_label. An "active" one retires the current active version; running
+    cases keep the version they started on."""
+    from datetime import datetime
+    for f in sorted((SEED / "pathways" / "versions").glob("*.json")):
+        v = json.loads(f.read_text(encoding="utf-8"))
+        p = s.scalars(select(Pathway).where(Pathway.code == v["code"])).first()
+        if not p or any((x.graph_json or {}).get("version_label") == v["version_label"] for x in p.versions):
+            continue
+        validate(v["graph"])
+        base = next((x for x in p.versions if x.status == "active"), None)
+        if v.get("status") == "active" and base:
+            base.status = "retired"
+        s.add(PathwayVersion(pathway_id=p.id, version=max(x.version for x in p.versions) + 1, status=v.get("status", "draft"),
+                             graph_json={**v["graph"], "version_label": v["version_label"]},
+                             based_on_version_id=base.id if base else None,
+                             activated_at=datetime.utcnow() if v.get("status") == "active" else None))
+        if v.get("guideline_source"):
+            p.guideline_source = v["guideline_source"]
 
 
 if __name__ == "__main__":

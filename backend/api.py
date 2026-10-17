@@ -443,6 +443,7 @@ def pathways():
                         "active_version_id": next((v.id for v in p.versions if v.status == "active"), None),
                         "guideline_source": p.guideline_source,
                         "versions": [{"id": v.id, "version": v.version, "status": v.status,
+                                      "label": (v.graph_json or {}).get("version_label"),
                                       "created_by_koc_id": v.created_by_koc_id, "created_at": v.created_at,
                                       "activated_at": v.activated_at} for v in p.versions]})
         return ok(out)

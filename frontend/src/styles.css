@@ -247,6 +247,11 @@ tbody tr:hover td { background: color-mix(in srgb, var(--hover) 60%, transparent
 .fnode.have .fst { color: var(--green); } .fnode.have .kic { background: var(--green-bg); color: var(--green); }
 .fnode.missing { border-color: color-mix(in srgb, var(--red) 40%, var(--line)); }
 .fnode.missing .fst { color: var(--red); } .fnode.missing .kic { background: var(--red-bg); color: var(--red); }
+/* missing and needed for the MDT: red, dashed, tinted; missing but not needed: grey, dashed (status text says which) */
+.fnode.missing { border: 2px dashed var(--red); background: color-mix(in srgb, var(--red-bg) 55%, var(--surface, var(--bg))); }
+.fnode.missing-opt { border: 1.5px dashed var(--line-strong); box-shadow: none; }
+.fnode.missing-opt .fst { color: var(--muted); } .fnode.missing-opt .kic { background: var(--line); color: var(--muted); }
+.fnode.missing-opt .lbl { color: var(--muted); }
 .fnode.conflict { border-color: color-mix(in srgb, var(--yellow) 50%, var(--line)); }
 .fnode.conflict .fst { color: var(--yellow); } .fnode.conflict .kic { background: var(--yellow-bg); color: var(--yellow); }
 .fnode.conditional { border-style: dashed; }

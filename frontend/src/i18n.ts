@@ -46,7 +46,7 @@ const en: Record<string, string> = {
   // case
   "tab.pathway": "Pathway", "tab.handover": "Handover", "tab.documents": "Documents", "tab.graph": "Patient graph",
   "tab.result": "MDT & result", "tab.audit": "Audit trail",
-  "doc.have": "Have it", "doc.missing": "Missing", "doc.conflict": "Conflict", "doc.conditional": "Depends on decision",
+  "doc.have": "Have it", "doc.missing": "Missing", "doc.missing_needed": "Missing – needed", "doc.missing_optional": "Missing – not needed", "doc.conflict": "Conflict", "doc.conditional": "Depends on decision",
   "doc.skipped": "Not needed", "step.done": "Done", "step.todo": "To do", "step.waiting": "Waiting",
   "pw.legend": "Legend", "pw.checklist": "Document checklist", "pw.checklist.d": "What this cancer pathway needs before the MDT – checked against the patient graph by fixed queries, not by AI.",
   "pw.next": "Next steps – who is on the move", "pw.others": "Waiting for others", "pw.completed": "Completed",
@@ -204,7 +204,7 @@ const cs: Record<string, string> = {
   next: "Další krok", day: "den", referred: "referováno", noPatients: "Žádní pacienti.",
   "tab.pathway": "Cesta", "tab.handover": "Handover", "tab.documents": "Dokumenty", "tab.graph": "Graf pacienta",
   "tab.result": "MDT a výsledek", "tab.audit": "Auditní stopa",
-  "doc.have": "Máme", "doc.missing": "Chybí", "doc.conflict": "Nesoulad", "doc.conditional": "Závisí na rozhodnutí",
+  "doc.have": "Máme", "doc.missing": "Chybí", "doc.missing_needed": "Chybí – nutné", "doc.missing_optional": "Chybí – není nutné", "doc.conflict": "Nesoulad", "doc.conditional": "Závisí na rozhodnutí",
   "doc.skipped": "Není potřeba", "step.done": "Hotovo", "step.todo": "K vyřízení", "step.waiting": "Čeká",
   "pw.legend": "Legenda", "pw.checklist": "Kontrolní seznam dokumentů", "pw.checklist.d": "Co tato onkologická cesta potřebuje před MDT – ověřeno proti grafu pacienta pevnými dotazy, ne AI.",
   "pw.next": "Další kroky – kdo je na tahu", "pw.others": "Čeká se na jiné", "pw.completed": "Hotovo",
