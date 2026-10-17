@@ -86,6 +86,19 @@ nodes = [
          description_en="For metastatic disease in a patient fit for targeted therapy; NGS indication via the molecular tumour board.",
          why=f"{MK}: u vybraných pacientů s metastatickým onemocněním únosných cílené terapie MSI, NTRK, somatické BRCA1/2 a KRAS.",
          why_en=f"{MK_EN}: for selected metastatic patients fit for targeted therapy – MSI, NTRK, somatic BRCA1/2 and KRAS."),
+    ev("pgx", "Farmakogenetika před chemoterapií (DPYD, UGT1A1)", "Pharmacogenetics before chemotherapy (DPYD, UGT1A1)",
+       "koc_doctor", 14,
+       "Genotyp DPYD (deficit DPD) před 5-FU / kapecitabinem a UGT1A1*28 před irinotekanem (FOLFIRINOX, NALIRIFOX) – "
+       "pro úpravu počáteční dávky. Nemění diagnózu ani kategorii resekability, proto neblokuje MDT; vyplatí se objednat "
+       "hned, aby byl výsledek hotový při zahájení léčby. U resekabilních před adjuvancí.",
+       "DPYD genotype (DPD deficiency) before 5-FU / capecitabine and UGT1A1*28 before irinotecan (FOLFIRINOX, NALIRIFOX) – "
+       "to adjust the starting dose. It changes neither the diagnosis nor the resectability category, so it does not block "
+       "the MDT; order it early so the result is ready when treatment starts. For resectable disease before adjuvant therapy.",
+       "EMA/PRAC 2020: před léčbou fluoropyrimidiny testovat deficit DPD; dávkování dle genotypu CPIC (DPYD) a DPWG "
+       "(DPYD, UGT1A1–irinotekan), shrnuto v ClinPGx. Není v kapitole ČOS 7 – strukturní zdroj, neblokuje.",
+       "EMA/PRAC 2020: test for DPD deficiency before fluoropyrimidines; genotype-based dosing per CPIC (DPYD) and DPWG "
+       "(DPYD, UGT1A1–irinotecan), summarised in ClinPGx. Not in ČOS chapter 7 – structure source, does not block.",
+       blocking=False),
     keep("nutrition", label="Nutriční podpora, pankreatické enzymy, diabetes", label_en="Nutrition, pancreatic enzymes, diabetes",
          why=f"{MK}: podpůrná léčba (nutrice, enzymy, kompenzace diabetu) u všech pacientů; neblokuje MDT.",
          why_en=f"{MK_EN}: supportive care (nutrition, enzymes, diabetes control) for every patient; does not block the MDT."),
@@ -135,8 +148,10 @@ edges = [E("referral", "triage")] + [E("triage", x) for x in
     E("resectability", "anticoag"), E("prior_reports", "anticoag"), E("anticoag", "biopsy"), E("resectability", "biopsy"),
     E("biopsy", "histology"),
     E("resectability", "molecular", "metastatic"), E("histology", "molecular"),
+    # systemic therapy comes first in these categories; resectable: before adjuvant therapy (after the MDT)
+    *[E("resectability", "pgx", b) for b in ("borderline", "locally_advanced", "metastatic")],
 ]
-tail_n, tail_e = standard_tail(["histology", "staging_laparoscopy", "mri_liver", "pet_ct", "molecular", "germline"])
+tail_n, tail_e = standard_tail(["histology", "staging_laparoscopy", "mri_liver", "pet_ct", "molecular", "germline", "pgx"])
 # MDT → final state (gated by the resectability decision) → decision to treat
 tail_e = [e for e in tail_e if not (e["source"] == "mdt" and e["target"] == "decision")]
 for key, *_ in OUTCOMES:

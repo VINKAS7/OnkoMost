@@ -1,0 +1,53 @@
+@startuml architecture
+' Onkomost (beta) – simplified component view.  Render: plantuml docs/architecture.puml
+title Onkomost – architektura (zjednodušeno)
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam nodesep 40
+skinparam ranksep 50
+
+actor "GP" as GP
+actor "Koordinátor" as COORD
+actor "Člen MDT" as MDT
+
+package "Webová aplikace (React)" {
+  [Portál PL] as GPUI
+  [Případ KOC] as KOCUI
+  [Pracoviště MDT] as MDTUI
+}
+
+package "Backend (FastAPI)" {
+  [Dokumenty a identita\n(čtení, jméno + RČ)] as DOCS
+  [Diagnostická cesta\n(pravidlový engine)] as PATH
+  [MDT podklady\nmapa těla + medikace] as MDTB
+}
+
+cloud "LLM\n(e-INFRA CZ)" as LLM
+database "IRIS for Health\nFHIR + graf pacienta" as IRIS
+
+package "Znalostní zdroje" {
+  database "ESMO" as ESMO
+  database "Modrá kniha\n2026" as MK
+  database "DrugBank" as DRUGBANK
+  database "ClinPGx" as CLINPGX
+}
+
+GP --> GPUI
+COORD --> KOCUI
+MDT --> MDTUI
+
+GPUI --> DOCS
+KOCUI --> DOCS
+KOCUI --> PATH
+MDTUI --> MDTB
+
+DOCS ..> LLM : vytěžení faktů
+DOCS --> IRIS
+PATH --> IRIS
+MDTB --> IRIS
+
+PATH ..> ESMO : doporučení
+PATH ..> MK : kroky a kritéria
+MDTB ..> DRUGBANK : místa působení léků
+MDTB ..> CLINPGX : interakce, PGx
+@enduml

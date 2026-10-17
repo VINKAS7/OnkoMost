@@ -459,6 +459,31 @@
     ]
    },
    {
+    "id": "pgx",
+    "type": "step",
+    "label": "Farmakogenetika před chemoterapií (DPYD, UGT1A1)",
+    "label_en": "Pharmacogenetics before chemotherapy (DPYD, UGT1A1)",
+    "phase": "diagnostics",
+    "owner_role": "koc_doctor",
+    "sla_days": 14,
+    "completion": "evidence",
+    "requires": [
+     {
+      "kind": "described"
+     }
+    ],
+    "blocking": false,
+    "accepted_formats": [
+     "pdf",
+     "docx",
+     "doc"
+    ],
+    "description": "Genotyp DPYD (deficit DPD) před 5-FU / kapecitabinem a UGT1A1*28 před irinotekanem (FOLFIRINOX, NALIRIFOX) – pro úpravu počáteční dávky. Nemění diagnózu ani kategorii resekability, proto neblokuje MDT; vyplatí se objednat hned, aby byl výsledek hotový při zahájení léčby. U resekabilních před adjuvancí.",
+    "description_en": "DPYD genotype (DPD deficiency) before 5-FU / capecitabine and UGT1A1*28 before irinotecan (FOLFIRINOX, NALIRIFOX) – to adjust the starting dose. It changes neither the diagnosis nor the resectability category, so it does not block the MDT; order it early so the result is ready when treatment starts. For resectable disease before adjuvant therapy.",
+    "why": "EMA/PRAC 2020: před léčbou fluoropyrimidiny testovat deficit DPD; dávkování dle genotypu CPIC (DPYD) a DPWG (DPYD, UGT1A1–irinotekan), shrnuto v ClinPGx. Není v kapitole ČOS 7 – strukturní zdroj, neblokuje.",
+    "why_en": "EMA/PRAC 2020: test for DPD deficiency before fluoropyrimidines; genotype-based dosing per CPIC (DPYD) and DPWG (DPYD, UGT1A1–irinotecan), summarised in ClinPGx. Not in ČOS chapter 7 – structure source, does not block."
+   },
+   {
     "id": "nutrition",
     "type": "step",
     "label": "Nutriční podpora, pankreatické enzymy, diabetes",
@@ -889,6 +914,21 @@
     "target": "molecular"
    },
    {
+    "source": "resectability",
+    "target": "pgx",
+    "branch": "borderline"
+   },
+   {
+    "source": "resectability",
+    "target": "pgx",
+    "branch": "locally_advanced"
+   },
+   {
+    "source": "resectability",
+    "target": "pgx",
+    "branch": "metastatic"
+   },
+   {
     "source": "histology",
     "target": "handover"
    },
@@ -910,6 +950,10 @@
    },
    {
     "source": "germline",
+    "target": "handover"
+   },
+   {
+    "source": "pgx",
     "target": "handover"
    },
    {
