@@ -9,7 +9,8 @@ Standalone: no other backend module imports it or is imported by it.
 Implements what the backend calls: GET /api/tags, POST /api/chat (`format` JSON schema / "json" →
 response_format; stream=true answers with Ollama's NDJSON chunks, reasoning as message.thinking when think=true),
 POST /api/embed. Key: EINFRA_API_KEY or the file EINFRA_KEY_FILE (default
-backend/einfracz.key); never logged. Env: EINFRA_BASE_URL, EINFRA_MODELS (models listed by /api/tags).
+backend/einfracz.key, kept out of git by the root .gitignore rule `*.key`); never logged. The bridge does not read
+backend/.env. Env: EINFRA_BASE_URL, EINFRA_MODELS (models listed by /api/tags).
 """
 from __future__ import annotations
 
