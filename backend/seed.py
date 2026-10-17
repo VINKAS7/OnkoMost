@@ -33,33 +33,45 @@ def standard_tail(feeders: list[str]) -> tuple[list[dict], list[dict]]:
         {"id": "handover", "type": "step", "label": "Handover potvrzen lékařem", "label_en": "Handover validated by doctor",
          "phase": "mdt", "owner_role": "koc_doctor", "sla_days": 2, "completion": "manual", "action": "Potvrdit handover",
          "description": "Lékař KOC zkontroluje handover a potvrdí, že případ je připraven na MDT.",
-         "description_en": "The KOC doctor checks the handover and confirms the case is ready for the MDT."},
+         "description_en": "The KOC doctor checks the handover and confirms the case is ready for the MDT.",
+         "why": "Na MDT jde jen úplný a ověřený podklad: diagnóza, staging, výkonnostní stav (ECOG) a komorbidity. ESMO staví volbu léčby na těchto údajích.",
+         "why_en": "Only a complete, checked dossier goes to the MDT: diagnosis, stage, performance status (ECOG) and comorbidities. ESMO bases the choice of treatment on these."},
         {"id": "mdt", "type": "mdt", "label": "Léčebné MDT", "label_en": "Treatment MDT",
          "phase": "mdt", "owner_role": "mdt", "sla_days": 7, "completion": "manual", "action": "Zapsat závěr MDT",
          "description": "Multidisciplinární tým zapíše diagnózu, závěr a doporučení léčby.",
-         "description_en": "The multidisciplinary team records the diagnosis, conclusion and treatment advice."},
+         "description_en": "The multidisciplinary team records the diagnosis, conclusion and treatment advice.",
+         "why": "Všechna doporučení ESMO (plíce, pankreas, prs) vyžadují, aby léčebnou strategii stanovil multidisciplinární tým; u karcinomu pankreatu MDT v expertním centru [III, A].",
+         "why_en": "All ESMO guidelines used here (lung, pancreas, breast) require the treatment strategy to be set by a multidisciplinary tumour board; for pancreatic cancer at an expert centre [III, A]."},
         {"id": "decision", "type": "decision", "label": "Rozhodnutí o léčbě", "label_en": "Decision to treat",
          "phase": "mdt", "owner_role": "mdt", "sla_days": 0, "completion": "branch", "multi": True,
          "description": "MDT vybere jeden nebo více léčebných plánů (sledování, paliace, chemo, radio, operace).",
          "description_en": "The MDT picks one or more treatment plans (watch, palliative, chemo, radio, surgery).",
+         "why": "Závěr MDT musí být zaznamenán jako konkrétní plán, aby ho koordinátor léčby (K2) mohl zajistit.",
+         "why_en": "The MDT's conclusion has to be recorded as a concrete plan so the treatment coordinator (K2) can carry it out.",
          "branches": [{"key": k, "label": cs, "label_en": en} for k, cs, en in TREATMENTS]},
         *[{"id": f"plan_{k}", "type": "treatment", "label": cs, "label_en": en, "phase": "treatment",
            "owner_role": "k2_coordinator", "completion": "branch",
-           "description": f"Zvolená léčba: {cs}.", "description_en": f"Chosen treatment: {en}."}
+           "description": f"Zvolená léčba: {cs}.", "description_en": f"Chosen treatment: {en}.",
+           "why": "Větev otevře jen rozhodnutí MDT.", "why_en": "Only the MDT decision opens this branch."}
           for k, cs, en in TREATMENTS],
         {"id": "feedback", "type": "feedback", "label": "Výsledek PL + revizní lékař", "label_en": "Result to GP + review doctor",
          "phase": "after_mdt", "owner_role": "coordinator", "sla_days": 2, "completion": "manual", "action": "Odeslat výsledek",
          "description": "Koordinátor odešle závěr MDT referujícímu lékaři a reviznímu lékaři.",
-         "description_en": "The coordinator sends the MDT result to the referring doctor and the review doctor."},
+         "description_en": "The coordinator sends the MDT result to the referring doctor and the review doctor.",
+         "why": "Uzavírá smyčku s referujícím lékařem: ví, co bylo rozhodnuto a co dál.",
+         "why_en": "Closes the loop with the referring doctor: they learn what was decided and what happens next."},
         {"id": "handover_k2", "type": "handover", "label": "Předání koordinátorovi léčby (K2)",
          "label_en": "Handover to treatment coordinator (K2)", "phase": "after_mdt", "owner_role": "coordinator",
          "sla_days": 3, "completion": "manual", "action": "Předat K2",
          "description": "Případ se předává koordinátorovi léčby (K2) k realizaci plánu.",
-         "description_en": "The case is handed to the treatment coordinator (K2) to carry out the plan."},
+         "description_en": "The case is handed to the treatment coordinator (K2) to carry out the plan.",
+         "why": "Diagnostická cesta končí předáním; léčbu vede koordinátor léčby.",
+         "why_en": "The diagnostic pathway ends with the handover; treatment is run by the treatment coordinator."},
         {"id": "closed", "type": "end", "label": "Uzavřeno", "label_en": "Closed", "phase": "after_mdt",
          "owner_role": "coordinator", "completion": "auto",
          "description": "Cesta je uzavřená – diagnostika a rozhodnutí jsou hotové.",
-         "description_en": "The pathway is closed – diagnostics and the decision are done."},
+         "description_en": "The pathway is closed – diagnostics and the decision are done.",
+         "why": "Konec diagnostické cesty.", "why_en": "End of the diagnostic pathway."},
     ]
     edges = [{"source": f, "target": "handover"} for f in feeders] + [
         {"source": "handover", "target": "mdt"}, {"source": "mdt", "target": "decision"},
@@ -114,7 +126,8 @@ def seed(clock: date | None = None) -> None:
                         snode = src.get(n["id"])
                         if not snode:
                             continue
-                        for key in ("description", "description_en", "accepted_formats", "label", "label_en"):
+                        for key in ("description", "description_en", "why", "why_en", "accepted_formats", "label",
+                                    "label_en"):
                             if snode.get(key):
                                 n[key] = snode[key]
                     v.graph_json = g

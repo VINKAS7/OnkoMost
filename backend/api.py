@@ -451,6 +451,7 @@ def pathway_version(version_id: int):
     with session_scope() as s:
         v = s.get(PathwayVersion, version_id)
         return ok({"id": v.id, "pathway_id": v.pathway_id, "pathway": v.pathway.name, "pathway_en": v.pathway.name_en,
+                   "icd_codes": v.pathway.icd_codes, "guideline_source": v.pathway.guideline_source,
                    "version": v.version,
                    "status": v.status, "graph": v.graph_json, "based_on_version_id": v.based_on_version_id,
                    "created_by_koc_id": v.created_by_koc_id})
@@ -465,6 +466,33 @@ class DraftIn(BaseModel):
 @app.post("/api/pathways/{pathway_id}/drafts")
 def create_draft(pathway_id: int, body: DraftIn):
     return ok({"version_id": gov.create_draft(pathway_id, body.koc_id, body.graph, blank=body.blank)})
+
+
+class NewPathwayIn(BaseModel):
+    koc_id: int
+    name: str = ""
+    name_en: str = ""
+    icd_codes: list[str] | str
+    guideline_source: str = ""
+
+
+@app.post("/api/pathways")
+def create_pathway(body: NewPathwayIn):
+    """A new cancer type: returns its draft v1, which goes to the vote like any change."""
+    return ok({"version_id": gov.create_pathway(body.koc_id, body.name, body.name_en, body.icd_codes,
+                                                body.guideline_source)})
+
+
+@app.put("/api/pathways/{pathway_id}")
+def update_pathway(pathway_id: int, body: NewPathwayIn):
+    gov.update_pathway_info(pathway_id, body.koc_id, body.name, body.name_en, body.icd_codes, body.guideline_source)
+    return ok()
+
+
+@app.delete("/api/pathway-versions/{version_id}")
+def discard_draft(version_id: int, koc_id: int):
+    gov.discard_draft(version_id, koc_id)
+    return ok()
 
 
 @app.put("/api/pathway-versions/{version_id}")

@@ -20,6 +20,7 @@ from datetime import date, timedelta
 
 from backend.extract.pipeline import ANTICOAGULANTS
 from backend.graph.store import Snapshot, graph
+from backend.ingest.reader import fold
 from backend.pathway.formats import format_ok
 from backend.pathway.model import Node, PathwayGraph
 
@@ -109,6 +110,14 @@ def check_requirement(req: dict, ctx: Ctx) -> tuple[bool, list[dict], dict]:
 
 def should_skip(node: Node, ctx: Ctx) -> bool:
     for cond in node.skip_if:
+        if cond["kind"] == "diagnosis_text":
+            # e.g. biomarkers for NSCLC are not needed in small-cell carcinoma: skip when a confirmed diagnosis names
+            # one of `any` and none of `none` ("nemalobuněčný" contains "malobuněčn", so it goes in `none`)
+            names = [fold(str(f.get("name", ""))) for f, _, _ in ctx.snap.edges("diagnosis", ctx.cutoff)
+                     if f.get("status") == "confirmed"]
+            if any(any(fold(a) in n for a in cond.get("any", [])) and not any(fold(x) in n for x in cond.get("none", []))
+                   for n in names):
+                return True
         if cond["kind"] == "no_anticoagulant":
             names = [a.lower() for a in ANTICOAGULANTS]
             meds = [f for f in ctx.snap.facts.values() if f.get("kind") == "medication"

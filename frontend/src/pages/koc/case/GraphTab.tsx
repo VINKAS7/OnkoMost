@@ -5,23 +5,12 @@ import { useMemo, useState } from "react";
 import { fmtDate } from "../../../api";
 import { useApp } from "../../../ctx";
 import { useFetch } from "../../../hooks";
+import { HIDDEN_KINDS, KINDS, kindLabel as kindName } from "../../../facts";
 import type { CaseDetail, GraphView } from "../../../types";
 
-const KINDS: Record<string, { en: string; cs: string; color: string }> = {
-  patient: { en: "Patient", cs: "Pacient", color: "var(--text)" }, document: { en: "Document", cs: "Dokument", color: "#9b9a97" },
-  facility: { en: "Facility", cs: "Pracoviště", color: "#c7c6c3" }, diagnosis: { en: "Diagnosis", cs: "Diagnóza", color: "#d44c47" },
-  condition: { en: "Comorbidity", cs: "Komorbidita", color: "#d9730d" }, medication: { en: "Medication", cs: "Lék", color: "#448361" },
-  symptom: { en: "Symptom", cs: "Symptom", color: "#cb912f" }, exam: { en: "Exam", cs: "Vyšetření", color: "#337ea9" },
-  lab: { en: "Lab value", cs: "Laboratoř", color: "#6f7fd1" }, measurement: { en: "Measurement", cs: "Měření", color: "#4ba3b8" },
-  note: { en: "Note", cs: "Poznámka", color: "#9065b0" }, precaution: { en: "Precaution", cs: "Opatření", color: "#c14c8a" },
-  mentioned_exam: { en: "Mentioned exam", cs: "Zmíněné vyšetření", color: "#9b9a97" },
-  contact_person: { en: "Contact", cs: "Kontakt", color: "#7a8f4f" }, referring_doctor: { en: "Referring doctor", cs: "Referující lékař", color: "#7a8f4f" },
-  allergy: { en: "Allergy", cs: "Alergie", color: "#d9730d" }, epikriza: { en: "Epikríza", cs: "Epikríza", color: "#9b9a97" },
-  mdt_question: { en: "MDT question", cs: "Otázka na MDT", color: "#9b9a97" },
-};
 const DEFAULT_OFF = new Set(["lab", "facility", "mentioned_exam", "symptom", "note", "epikriza", "mdt_question", "referring_doctor"]);
-const SIZE: Record<string, number> = { patient: 30, document: 14, diagnosis: 16 };
-const ALWAYS_LABEL = new Set(["patient", "diagnosis", "document", "exam", "condition", "medication", "precaution", "allergy", "contact_person"]);
+const SIZE: Record<string, number> = { patient: 34, document: 15, diagnosis: 18 };
+const ALWAYS_LABEL = new Set(["patient", "diagnosis", "document", "exam", "condition", "medication", "precaution", "allergy", "contact_person", "measurement"]);
 
 type GData = { label: string; kind: string; size: number; selected: boolean; dim: boolean; showLabel: boolean };
 
@@ -36,7 +25,7 @@ function GNode({ data }: NodeProps<Node<GData>>) {
         border: `2px solid ${color}`, boxShadow: data.selected ? `0 0 0 4px ${color}33` : undefined }} />
       {data.showLabel && (
         <div style={{ position: "absolute", left: data.size + 5, top: "50%", transform: "translateY(-50%)", whiteSpace: "nowrap",
-          fontSize: data.kind === "patient" ? 13 : 10.5, fontWeight: data.kind === "patient" || data.kind === "diagnosis" ? 650 : 450,
+          fontSize: data.kind === "patient" ? 14 : 12, fontWeight: data.kind === "patient" || data.kind === "diagnosis" ? 650 : 450,
           color: "var(--text)", background: "var(--bg)", padding: "0 2px", borderRadius: 3, pointerEvents: "none" }}>{data.label}</div>
       )}
       <Handle type="source" position={Position.Top} style={center} />
@@ -66,16 +55,17 @@ export default function GraphTab({ c }: { c: CaseDetail }) {
   // 1) force layout – recomputed only when the data or the visible kinds change
   const layout = useMemo(() => {
     if (!data) return null;
-    const visible = data.nodes.filter((n) => !off.has(n.kind));
+    const visible = data.nodes.filter((n) => !off.has(n.kind) && !HIDDEN_KINDS.has(n.kind));
     const ids = new Set(visible.map((n) => n.id));
     const links = data.edges.filter((e) => e.label !== "ABOUT" && ids.has(e.source) && ids.has(e.target));
     const simNodes: SimNode[] = visible.map((n) => ({ id: n.id, kind: n.kind, ...(n.kind === "patient" ? { fx: 0, fy: 0 } : {}) }));
     const simLinks: (SimulationLinkDatum<SimNode> & { label: string })[] = links.map((e) => ({ source: e.source, target: e.target, label: e.label }));
     const sim = forceSimulation(simNodes)
       .force("link", forceLink<SimNode, SimulationLinkDatum<SimNode> & { label: string }>(simLinks).id((d) => d.id)
-        .distance((l) => (l.label === "HAS" ? 140 : l.label === "STATED_IN" ? 90 : 40)).strength(0.45))
-      .force("charge", forceManyBody().strength(-520))
-      .force("collide", forceCollide<SimNode>().radius((d) => (d.kind === "patient" ? 70 : 40)).strength(0.9))
+        .distance((l) => (l.label === "HAS" ? 200 : l.label === "STATED_IN" ? 110 : 40)).strength(0.4))
+      .force("charge", forceManyBody().strength(-900))
+      // labelled nodes need room for their text, not just their dot
+      .force("collide", forceCollide<SimNode>().radius((d) => (d.kind === "patient" ? 110 : ALWAYS_LABEL.has(d.kind) ? 62 : 30)).strength(1))
       .force("center", forceCenter(0, 0))
       .stop();
     for (let i = 0; i < 400; i++) sim.tick();
@@ -86,7 +76,7 @@ export default function GraphTab({ c }: { c: CaseDetail }) {
   // 2) render – highlight the selected node and its neighbours
   const { nodes, edges, counts } = useMemo(() => {
     const counts: Record<string, number> = {};
-    data?.nodes.forEach((n) => { counts[n.kind] = (counts[n.kind] ?? 0) + 1; });
+    data?.nodes.forEach((n) => { if (!HIDDEN_KINDS.has(n.kind)) counts[n.kind] = (counts[n.kind] ?? 0) + 1; });
     if (!layout) return { nodes: [] as Node<GData>[], edges: [] as Edge[], counts };
     const neigh = new Set<string>(sel ? [sel] : []);
     layout.links.forEach((e) => { if (e.source === sel) neigh.add(e.target); if (e.target === sel) neigh.add(e.source); });
@@ -108,7 +98,7 @@ export default function GraphTab({ c }: { c: CaseDetail }) {
   }, [layout, sel, data]);
 
   const node = data?.nodes.find((n) => n.id === sel);
-  const kindLabel = (k: string) => (lang === "en" ? KINDS[k]?.en : KINDS[k]?.cs) ?? k;
+  const kindLabel = (k: string) => kindName(k, lang);
   return (
     <div className="col" style={{ gap: 8 }}>
       <div className="col" style={{ gap: 8 }}>
@@ -128,7 +118,7 @@ export default function GraphTab({ c }: { c: CaseDetail }) {
           </label>
         </div>
         <div className="flow" style={{ height: 780 }}>
-          <ReactFlow key={layout?.key ?? "empty"} nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.05, minZoom: 0.62 }} minZoom={0.15}
+          <ReactFlow key={layout?.key ?? "empty"} nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.06, maxZoom: 1.1 }} minZoom={0.15}
             onNodeClick={(_, n) => setSel(n.id === sel ? null : n.id)} onPaneClick={() => setSel(null)} nodesConnectable={false}
             proOptions={{ hideAttribution: true }}>
             <Background gap={24} size={1} color="var(--line)" />

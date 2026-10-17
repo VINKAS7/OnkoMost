@@ -318,7 +318,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--hover) 60%, transparent
 
 /* ---------- condition builder ---------- */
 .cgroup { position: relative; display: flex; flex-direction: column; gap: 10px; padding-left: 22px; }
-.cgroup::before { content: ""; position: absolute; left: 7px; top: 12px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--teal); }
+.cgroup::before { content: ""; position: absolute; left: 7px; top: 29px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--teal); }
 .cgroup.or::before { background: var(--purple); }
 .cgroup-head { display: flex; align-items: center; gap: 8px; margin-left: -22px; font-size: 13.5px; color: var(--muted); }
 .cbadge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 650; line-height: 19px; background: var(--teal-bg); color: var(--teal); border: 1px solid color-mix(in srgb, var(--teal) 25%, transparent); }
@@ -405,3 +405,46 @@ details summary { cursor: pointer; }
 .bm-site { padding: 7px 8px; border-top: 1px solid var(--line); cursor: pointer; border-radius: 6px; }
 .bm-site:hover, .bm-site.on { background: var(--hover); }
 .bm-quote { border-left: 2px solid var(--line-strong); padding-left: 10px; margin: 4px 0 0 4px; white-space: pre-wrap; }
+
+/* ---------- charts: journey timeline, lab trends (thin marks, hairline grid, text in text tokens) ---------- */
+.progress + .timeline { padding-top: 14px; border-top: 1px solid var(--line); }
+.tl-fig { font-size: 13.5px; } .tl-fig b { font-size: 15px; font-weight: 650; }
+.tl-row { font-size: 12.5px; fill: var(--muted); font-weight: 550; }
+.tl-tick { font-size: 11.5px; fill: var(--faint); }
+.tl-grid { stroke: var(--line); stroke-width: 1; }
+.tl-axis { stroke: var(--line-strong); stroke-width: 1; }
+.tl-phase { fill: var(--accent); opacity: 0.07; }
+.tl-mark line { stroke: var(--line-strong); stroke-width: 1; }
+.tl-mark text { font-size: 11.5px; fill: var(--muted); font-weight: 600; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+.tl-mark.mdt line { stroke: var(--accent); stroke-width: 1.5; }
+.tl-mark.mdt text { fill: var(--accent); }
+.tl-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; transition: r .1s; }
+.tl-dot.after { fill: var(--bg); stroke: var(--accent); stroke-width: 1.8; }
+.tl-dot.on { r: 7; }
+.tl-pt { cursor: pointer; }
+.viz-tip { position: absolute; z-index: 20; pointer-events: none; min-width: 140px; max-width: 280px; padding: 7px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); box-shadow: var(--shadow-md); font-size: 12.5px; line-height: 1.45; }
+.lab-grid { display: grid; gap: 12px; }
+.lab-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px 8px; background: var(--bg); box-shadow: var(--shadow-xs); }
+.lab-band { fill: var(--gray-bg); stroke: var(--line); stroke-width: 1; }
+.lab-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.lab-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+.lab-dot.out { fill: var(--red); }
+.lab-val { font-size: 11px; fill: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+.lab-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); box-shadow: var(--shadow-xs); min-width: 200px; }
+.lab-big { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kpi .kpi-label { font-size: 13px; color: var(--muted); font-weight: 550; }
+.kpi .kpi-sub { font-size: 12.5px; color: var(--faint); }
+@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* the anatomogram is drawn for a light page: keep it on a soft light plate in dark mode instead of glaring white */
+:root[data-theme="dark"] .bodymap-figure { background: #d5d9e0; border-color: var(--line-strong); }
+.lab-band-label { font-size: 10.5px; fill: var(--faint); font-weight: 500; }
+
+/* pathway editor: name + ICD codes of a new cancer type, above the canvas */
+.new-type { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--blue-bg) 60%, transparent); }
+
+/* opened pathway step: needs / why / formats / matched document */
+.step-details { display: flex; flex-direction: column; gap: 14px; }
+.step-details .section-title { margin: 0 0 4px; }
+.step-ev { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.step-ev .ico { width: 14px; height: 14px; color: var(--green); flex: none; }

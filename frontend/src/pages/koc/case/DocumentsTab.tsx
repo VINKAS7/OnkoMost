@@ -2,10 +2,11 @@ import { useState } from "react";
 import { api, fmtDate } from "../../../api";
 import { Empty, Tag } from "../../../components/ui";
 import { useAction, useApp } from "../../../ctx";
+import { HIDDEN_KINDS, kindLabel } from "../../../facts";
 import type { CaseDetail } from "../../../types";
 
 export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () => void }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const { run, busy } = useAction();
   const [over, setOver] = useState(false);
   const upload = (files: FileList | null) => {
@@ -36,12 +37,12 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
                 </td>
                 <td className="small">{d.facility}<div className="muted xs">{d.author}</div></td>
                 <td>
-                  <Tag color={d.status === "done" ? "green" : d.status === "blocked" || d.status === "error" ? "red" : "purple"}>{d.status === "blocked" ? t("docs.blocked") : d.status}</Tag>
-                  {d.identity?.ok && <div className="xs muted" style={{ marginTop: 3 }}>{d.identity.matched_on?.join(" + ")}</div>}
+                  <Tag color={d.status === "done" ? "green" : d.status === "blocked" || d.status === "error" ? "red" : "purple"}>{d.status === "blocked" ? t("docs.blocked") : t(`dst.${d.status}`)}</Tag>
+                  {d.identity?.ok && <div className="xs muted" style={{ marginTop: 3 }} title={t("docs.idOk")}>✓ {d.identity.matched_on?.map((m) => (m === "rc" ? "RČ" : m)).join(" + ")}</div>}
                 </td>
                 <td className="small">
                   <div className="row wrap" style={{ gap: 3 }}>
-                    {d.summary?.facts && Object.entries(d.summary.facts).map(([k, v]) => <Tag key={k}>{k} {v}</Tag>)}
+                    {d.summary?.facts && Object.entries(d.summary.facts).filter(([k]) => !HIDDEN_KINDS.has(k)).map(([k, v]) => <Tag key={k}>{kindLabel(k, lang)} {v}</Tag>)}
                     {!!d.summary?.llm_items && <Tag color="purple">{d.summary.llm_items} {t("docs.byAi")}</Tag>}
                     {!!d.summary?.unverified && <Tag color="yellow">{d.summary.unverified} {t("docs.toCheck")}</Tag>}
                     {!!d.summary?.flags && <Tag color="yellow">{d.summary.flags} {t("doc.conflict").toLowerCase()}</Tag>}

@@ -32,6 +32,7 @@ export type PathwayNode = {
   completion?: string; requires?: Requirement[]; skip_if?: Requirement[];
   branches?: { key: string; label: string; label_en?: string }[]; multi?: boolean;
   branch?: string | null; blocking?: boolean; action?: string; description?: string; description_en?: string;
+  why?: string; why_en?: string;  // the guideline reason for the step (shown when it is opened)
   accepted_formats?: string[];
   // filled in for a case:
   status?: "done" | "available" | "blocked" | "skipped"; done_on?: string | null; due_on?: string | null;
@@ -124,11 +125,12 @@ export type PathwayInfo = {
   versions: { id: number; version: number; status: string; created_by_koc_id: number | null; created_at: string;
               activated_at: string | null }[];
 };
-export type PathwayVersion = { id: number; pathway_id: number; pathway: string; pathway_en: string; version: number; status: string;
+export type PathwayVersion = { id: number; pathway_id: number; pathway: string; pathway_en: string; icd_codes: string[];
+                               guideline_source: string; version: number; status: string;
                                graph: PathwayGraph; based_on_version_id: number | null; created_by_koc_id: number | null };
 
 export type Proposal = {
-  id: number; pathway_id: number; pathway: string; title: string; rationale: string; author: string; author_koc_id: number;
+  id: number; pathway_id: number; pathway: string; pathway_en?: string | null; new_pathway?: boolean; icd_codes?: string[]; title: string; rationale: string; author: string; author_koc_id: number;
   deadline: string; status: string; created_at: string; closed_at: string | null; base_version: number;
   draft_version: number; draft_version_id: number; base_graph: PathwayGraph; draft_graph: PathwayGraph;
   diff: { added_nodes: string[]; removed_nodes: string[]; changed_nodes: { id: string; fields: string[];

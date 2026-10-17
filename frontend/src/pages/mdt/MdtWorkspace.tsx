@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, fmtDate } from "../../api";
+import { JourneyTimeline } from "../../components/JourneyTimeline";
+import { LabTrends } from "../../components/LabTrends";
 import { AutoTextarea, DocCounts, Spinner, Status } from "../../components/ui";
 import { useAction, useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
@@ -155,7 +157,7 @@ export default function MdtWorkspace() {
         <div>
           <h1>{c.patient_name}</h1>
           <div className="meta" style={{ marginTop: 4 }}>
-            <span>{age(c.dob, c.today)} · RČ {c.rc}</span>
+            <span>{age(c.dob, c.today)} {t("age.y")} · RČ {c.rc}</span>
             <span>{pick(c.pathway.name, c.pathway.name_en)}</span>
             <span>MDT {fmtDate(c.mdt_date)}</span>
             <Link to={`/koc/cases/${c.id}`}>{t("tab.pathway")}</Link>
@@ -163,6 +165,7 @@ export default function MdtWorkspace() {
         </div>
         <DocCounts counts={c.doc_counts} />
       </div>
+      <section className="card"><div className="card-body" style={{ paddingTop: 2 }}><JourneyTimeline c={c} /></div></section>
 
       <div className="mdt-grid">
         <aside className="mdt-body">
@@ -195,6 +198,7 @@ export default function MdtWorkspace() {
               </div>
             </section>
           )}
+          <LabTrends caseId={c.id} cutoff={c.mdt_date} />
           <AskPanel c={c} />
           <DecisionPanel c={c} brief={brief} reload={reload} />
         </div>

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { api, fmtDate } from "../../../api";
 import { Icon } from "../../../components/Icon";
 import { FlowLegend, PathwayFlow } from "../../../components/PathwayFlow";
-import { FormatChips } from "../../../components/Requirements";
+import { StepDetails } from "../../../components/StepDetails";
 import { DOC_COLOR, Due, Empty } from "../../../components/ui";
 import { useAction, useApp } from "../../../ctx";
 import type { CaseDetail, PathwayNode, Task } from "../../../types";
@@ -102,12 +102,10 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
   const done = c.tasks.filter((x) => x.status === "done" || x.status === "dismissed");
 
   return (
-    <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(320px, 1fr)", gap: 28 }}>
+    <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(330px, 1fr)", gap: 24 }}>
       <div className="col" style={{ gap: 12 }}>
-        <div style={{ position: "relative" }}>
-          <div className="flow-legend"><FlowLegend /></div>
-          <PathwayFlow graph={c.pathway_graph} selectedId={sel} onSelect={setSel} height={700} />
-        </div>
+        <FlowLegend />
+        <PathwayFlow graph={c.pathway_graph} selectedId={sel} onSelect={setSel} height={700} />
         {node && (
           <div className="block">
             <div className="spread"><b>{pick(node.label, node.label_en)}</b>{node.doc_status && <span className="st"><span className={`dot ${DOC_COLOR[node.doc_status]}`} />{t(`doc.${node.doc_status}`)}</span>}</div>
@@ -115,13 +113,8 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
               <span>{node.owner_name}</span>
               {node.done_on ? <span>{t("pw.doneOn")} {fmtDate(node.done_on)}</span> : node.due_on && <span>{t("pw.due")} {fmtDate(node.due_on)}</span>}
             </div>
-            {(node.description || node.description_en) && <div className="small" style={{ marginTop: 10 }}>{pick(node.description, node.description_en)}</div>}
-            {node.completion === "evidence" && <div style={{ marginTop: 10 }}><FormatChips value={node.accepted_formats} /></div>}
             {node.conflicts?.map((x) => <div key={x.key} className="small" style={{ marginTop: 6, color: "var(--yellow)" }}>{pick(x.message, x.message_en)}{x.reviewed && " ✓"}</div>)}
-            {node.evidence?.map((e, i) => <div key={i} className="small" style={{ marginTop: 4 }}><a href={`/api/documents/${e.doc_id}/raw`}>{e.title}</a> <span className="muted">· {fmtDate(e.date)}</span></div>)}
-            {node.completion === "evidence" && !node.evidence?.length && node.doc_status === "missing" && (
-              <div className="xs muted" style={{ marginTop: 8 }}>{t("pw.notParsed")}</div>
-            )}
+            <div style={{ marginTop: 12 }}><StepDetails node={node} inCase /></div>
           </div>
         )}
       </div>

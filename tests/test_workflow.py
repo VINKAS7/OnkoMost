@@ -154,21 +154,65 @@ def test_governance_majority_of_all_kocs(fresh):
         assert s.get(Case, case_id).pathway_version_id == v1_id  # running case keeps v1
 
 
-def test_lung_pathway_route_decision(fresh):
-    """Lung pathway from the brief's image: the diagnostic route decision gates PET-CT / biopsy steps."""
-    case_id = seed_demo.run("referral")  # reuse the patient, but on the lung pathway via a second case
-    from backend.workflow.db import Koc
+def test_new_cancer_type_goes_through_the_vote(fresh):
+    with session_scope() as s:
+        set_today(s, date(2026, 11, 1))
+    with pytest.raises(gov.GovernanceError, match="already covered"):
+        gov.create_pathway(2, "Plíce 2", "Lung 2", "C34.1")  # lung owns C34
+    with pytest.raises(gov.GovernanceError, match="ICD-10"):
+        gov.create_pathway(2, "Prostata", "Prostate", "prostate")
+
+    draft = gov.create_pathway(2, "Karcinom prostaty", "Prostate cancer", "c61")
+    with session_scope() as s:
+        v = s.get(PathwayVersion, draft)
+        pathway_id = v.pathway_id
+        assert (v.status, v.version, v.based_on_version_id) == ("draft", 1, None)
+        assert v.pathway.code == "prostate_cancer" and v.pathway.icd_codes == ["C61"]
+        assert svc._pathway_for(s, "C61").pathway_id != pathway_id  # not routable before the vote
+    gov.update_pathway_info(pathway_id, 2, "Karcinom prostaty", "Prostate cancer", "C61, C62")
+    with pytest.raises(gov.GovernanceError):
+        gov.update_pathway_info(pathway_id, 3, "Cizí", "Someone else's", "C61")
+
+    p = gov.submit(draft, "Prostate cancer pathway", "new cancer type", date(2026, 11, 10), 2)
+    with session_scope() as s:
+        from backend.workflow.db import ChangeProposal
+        view = gov.proposal_view(s, s.get(ChangeProposal, p))
+        assert view["new_pathway"] and view["base_version"] == 0 and view["icd_codes"] == ["C61", "C62"]
+        assert "feedback" in view["diff"]["added_nodes"]
+    with pytest.raises(gov.GovernanceError, match="already covered"):
+        gov.create_pathway(3, "Varle", "Testis", "C62")  # the proposal being voted on claims C62
+    for k in (1, 2, 3, 4):
+        gov.cast_vote(p, k, "yes")
+    with session_scope() as s:
+        assert s.get(PathwayVersion, draft).status == "active"
+        assert svc._pathway_for(s, "C61").id == draft
+
+
+def test_discarding_a_new_cancer_type_draft_removes_it(fresh):
+    draft = gov.create_pathway(2, "", "Melanoma", "C43")
+    with pytest.raises(gov.GovernanceError):
+        gov.discard_draft(draft, 3)  # not the author
+    gov.discard_draft(draft, 2)
+    with session_scope() as s:
+        from backend.workflow.db import Pathway
+        assert not s.query(Pathway).filter_by(code="melanoma").first()
+
+
+def test_lung_pathway_extent_decision(fresh):
+    """ESMO lung pathway: the diagnostic MDT's extent decision gates the radical work-up (PET-CT, lung function,
+    mediastinal staging); biopsy and brain MRI apply to both branches."""
+    seed_demo.run("referral")  # reuse the patient, but on the lung pathway via a second case
     f = PACIENT / "07_PL_zadost_KOC2_2026-10-02.docx"
     lung = svc.create_referral(1, [(f.name, f.read_bytes())], sync=True, pathway_id=seed_demo.pathway_id("lung"),
                                patient_name="Alena Procházková", rc="635722/1013")
     nodes = {n["id"]: n for n in _detail(lung)["pathway_graph"]["nodes"]}
-    assert nodes["pet_ct"]["doc_status"] == "conditional"  # depends on the route not chosen yet
-    svc.choose_decision(lung, "route", ["non_radical"], "test")
+    assert nodes["pet_ct"]["doc_status"] == "conditional" and nodes["pft"]["doc_status"] == "conditional"
+    svc.choose_decision(lung, "extent", ["metastatic"], "test")
     nodes = {n["id"]: n for n in _detail(lung)["pathway_graph"]["nodes"]}
-    assert nodes["pet_ct"]["status"] == "skipped" and nodes["biopsy_curative"]["status"] == "skipped"
-    assert nodes["biopsy_non_radical"]["doc_status"] == "missing"
+    assert all(nodes[k]["status"] == "skipped" for k in ("pet_ct", "pft", "mediastinal"))
+    assert nodes["biopsy"]["doc_status"] == "missing" and nodes["brain_mri"]["doc_status"] == "missing"
     with pytest.raises(svc.WorkflowError):
-        svc.choose_decision(lung, "route", ["curative", "no_biopsy"], "test")  # single choice only
+        svc.choose_decision(lung, "extent", ["radical", "metastatic"], "test")  # single choice only
 
 
 def test_graphrag_finds_tumour_marker(fresh):

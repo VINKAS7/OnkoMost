@@ -54,8 +54,12 @@ class Node(BaseModel):
     branch: str | None = None
     blocking: bool = True
     action: str = ""
+    # what the step needs – shown when the step is opened, and the LLM's brief (with the title) for matching documents
     description: str = ""
     description_en: str = ""
+    # why the step is in the pathway (guideline recommendation + evidence level) – for people, not for matching
+    why: str = ""
+    why_en: str = ""
     # OR-list of official hospital file formats this document step accepts (pdf, docx, dicom, …).
     accepted_formats: list[str] = Field(default_factory=list)
 

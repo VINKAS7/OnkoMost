@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { fmtDate } from "../../api";
 import { Due, Empty, PageHead, StateTag } from "../../components/ui";
 import { useApp } from "../../ctx";
+import { dayNum } from "../../facts";
 import { useFetch } from "../../hooks";
 import type { CaseSummary } from "../../types";
 
@@ -41,12 +42,28 @@ export default function Dashboard() {
   const elsewhere = kocs.filter((k) => k.id !== kocId && all.some((c) => c.koc.id === k.id));
   const open = cases.filter((c) => c.queue !== "closed");
   const overdue = open.reduce((a, c) => a + c.overdue_tasks, 0);
+  const tasks = open.reduce((a, c) => a + c.open_tasks, 0);
+  // diagnostic interval: referral → MDT, median over this centre's cases that had their MDT
+  const spans = cases.filter((c) => c.mdt_date).map((c) => dayNum(c.mdt_date!) - dayNum(c.created_on)).sort((a, b) => a - b);
+  const median = spans.length ? (spans.length % 2 ? spans[(spans.length - 1) / 2] : (spans[spans.length / 2 - 1] + spans[spans.length / 2]) / 2) : null;
+  const kpis: [string, string | number, string, string?][] = [
+    [t("kpi.care"), open.length, t("kpi.care.sub")],
+    [t("kpi.tasks"), tasks, t("kpi.tasks.sub")],
+    [t("kpi.overdue"), overdue, t("kpi.overdue.sub"), overdue ? "var(--red)" : undefined],
+    [t("kpi.mdtDays"), median ?? "—", median != null ? `${t("kpi.mdtDays.sub")} · n = ${spans.length}` : t("kpi.noMdt")],
+  ];
   return (
     <div className="page wide">
-      <PageHead title={t("koc.title")}
-        lead={<span className="meta"><span>{koc ? koc.coordinator_name : t("top.all")}</span><span>{open.length} {t("kpi.care").toLowerCase()}</span>
-          <span>{open.reduce((a, c) => a + c.open_tasks, 0)} {t("kpi.tasks").toLowerCase()}</span>
-          {overdue > 0 && <span style={{ color: "var(--red)" }}>{overdue} {t("kpi.overdue").toLowerCase()}</span>}</span>} />
+      <PageHead title={t("koc.title")} lead={koc ? koc.coordinator_name : t("top.all")} />
+      <div className="kpis">
+        {kpis.map(([label, value, sub, color]) => (
+          <div key={label} className="kpi">
+            <span className="kpi-label">{label}</span>
+            <b style={color ? { color } : undefined}>{value}</b>
+            <span className="kpi-sub">{sub}</span>
+          </div>
+        ))}
+      </div>
       {error && <div className="callout red">{error}</div>}
       {data && !cases.length && elsewhere.length > 0 && (
         <div className="callout yellow"><div className="grow row wrap">{t("koc.elsewhere")}

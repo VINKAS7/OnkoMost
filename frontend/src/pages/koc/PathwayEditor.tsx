@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api } from "../../api";
+import { api, fmtDate } from "../../api";
 import { Icon } from "../../components/Icon";
 import { nodeKind, PathwayFlow } from "../../components/PathwayFlow";
 import { FormatPicker, newRequirement, Requirements } from "../../components/Requirements";
 import { AutoTextarea, Callout, Spinner, Tag } from "../../components/ui";
 import { useAction, useApp } from "../../ctx";
+import { addDays } from "../../facts";
 import { useFetch } from "../../hooks";
 import type { PathwayGraph, PathwayNode, PathwayVersion } from "../../types";
 
@@ -55,18 +56,31 @@ export default function PathwayEditor() {
   const nav = useNavigate();
   const llmOn = health?.llm !== false;
 
+  const [meta, setMeta] = useState<{ name: string; name_en: string; icd: string; source: string } | null>(null);
   useEffect(() => { if (v && !g) setG(structuredClone(v.graph)); }, [v, g]);
+  useEffect(() => { if (v && !meta) setMeta({ name: v.pathway, name_en: v.pathway_en, icd: v.icd_codes.join(", "), source: v.guideline_source }); }, [v, meta]);
+  // deadlines are checked against the app's (demo) date, not the computer's – default to two weeks after it
+  const minDeadline = health?.today ? addDays(health.today, 1) : undefined;
+  useEffect(() => { if (health?.today && !deadline) setDeadline(addDays(health.today, 14)); }, [health?.today]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!g) return;
     const timer = setTimeout(() => api.post<{ valid: boolean; error?: string }>("/api/pathway-versions/validate", g).then(setValid), 300);
     return () => clearTimeout(timer);
   }, [g]);
 
-  if (!v || !g) return <div className="page muted">{t("common.loading")}</div>;
+  if (!v || !g || !meta) return <div className="page muted">{t("common.loading")}</div>;
   const node = g.nodes.find((n) => n.id === sel);
   const editable = v.status === "draft" && v.created_by_koc_id === kocId;
+  // drafts of an existing pathway always have a base version; only a new cancer type's v1 has none
+  const isNew = v.based_on_version_id == null && (v.status === "draft" || v.status === "voting");
   const upd = (patch: Partial<PathwayNode>) => setG({ ...g, nodes: g.nodes.map((n) => (n.id === sel ? { ...n, ...patch } : n)) });
-  const save = () => run(() => api.put(`/api/pathway-versions/${v.id}`, { koc_id: kocId, graph: g }), "✓");
+  const store = async () => {
+    if (isNew) await api.put(`/api/pathways/${v.pathway_id}`, { koc_id: kocId, name: meta.name, name_en: meta.name_en, icd_codes: meta.icd, guideline_source: meta.source });
+    return api.put(`/api/pathway-versions/${v.id}`, { koc_id: kocId, graph: g });
+  };
+  const save = () => run(store, "✓");
+  const discard = () => window.confirm(t("ed.discardConfirm"))
+    && run(() => api.del(`/api/pathway-versions/${v.id}?koc_id=${kocId}`), "✓", () => nav("/koc/pathways"));
   const addKind = (kind: string) => {
     const n = makeNode(kind);
     const edges = sel && !g.edges.some((e) => e.source === sel && e.target === n.id)
@@ -105,16 +119,28 @@ export default function PathwayEditor() {
           <div className="crumbs">
             <Link to="/koc/pathways">{t("nav.pathways")}</Link>
             <Icon name="chevron" />
-            <span>{pick(v.pathway, v.pathway_en)}</span>
+            <span>{isNew ? pick(meta.name || meta.name_en, meta.name_en || meta.name) : pick(v.pathway, v.pathway_en)}</span>
             <span className="muted" style={{ fontWeight: 500 }}>v{v.version}</span>
+            {isNew && <Tag color="blue">{t("pws.new")}</Tag>}
           </div>
           <Tag color={valid.valid ? "green" : "red"} title={valid.error}>
             <span className={`dot ${valid.valid ? "green" : "red"}`} style={{ width: 6, height: 6 }} />
             {valid.valid ? t("ed.valid") : t("ed.invalid")}
           </Tag>
           {!editable && <Tag color="yellow">{v.status} · {t("ed.readonly")}</Tag>}
-          {editable && <button className="sm primary right" disabled={!valid.valid || busy} onClick={save}>{t("ed.save")}</button>}
+          {editable && <button className="sm ghost danger right" disabled={busy} onClick={discard}>{t("ed.discard")}</button>}
+          {editable && <button className="sm primary" disabled={!valid.valid || busy} onClick={save}>{t("ed.save")}</button>}
         </div>
+        {isNew && (
+          <div className="new-type">
+            <div className="row" style={{ gap: 8, alignItems: "baseline" }}><b>{t("ed.newType")}</b><span className="xs muted">{t("ed.newTypeSub")}</span></div>
+            <div className="row wrap" style={{ alignItems: "flex-end" }}>
+              <label className="field grow">{t("np.name")}<input disabled={!editable} value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} /></label>
+              <label className="field grow">{t("np.nameEn")}<input disabled={!editable} value={meta.name_en} onChange={(e) => setMeta({ ...meta, name_en: e.target.value })} /></label>
+              <label className="field" style={{ width: 200 }}>{t("np.icd")}<input className="mono" disabled={!editable} value={meta.icd} onChange={(e) => setMeta({ ...meta, icd: e.target.value })} /></label>
+            </div>
+          </div>
+        )}
         {!valid.valid && valid.error && <div style={{ padding: "10px 18px 0" }}><Callout color="red">{valid.error}</Callout></div>}
         <div className="window-split editor">
           {editable && (
@@ -186,6 +212,12 @@ export default function PathwayEditor() {
                     <label className="field">{t("ed.description")} (EN)
                       <AutoTextarea disabled={!editable} value={node.description_en ?? ""} onChange={(e) => upd({ description_en: e.target.value })} style={{ minHeight: 72 }} />
                     </label>
+                    <label className="field">{t("ed.why")} (CZ)
+                      <AutoTextarea disabled={!editable} value={node.why ?? ""} onChange={(e) => upd({ why: e.target.value })} style={{ minHeight: 56 }} />
+                    </label>
+                    <label className="field">{t("ed.why")} (EN)
+                      <AutoTextarea disabled={!editable} value={node.why_en ?? ""} onChange={(e) => upd({ why_en: e.target.value })} style={{ minHeight: 56 }} />
+                    </label>
                     {node.completion === "evidence" && (
                       <>
                         <div className="section-title" style={{ marginBottom: -6 }}>{t("ed.formats")}</div>
@@ -234,12 +266,13 @@ export default function PathwayEditor() {
             <div className="xs muted">{t("pr.sub")}</div>
             <div className="row wrap" style={{ alignItems: "flex-end" }}>
               <label className="field grow">{t("ed.ptitle")}<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-              <label className="field" style={{ width: 200 }}>{t("ed.deadline")}<input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
+              <label className="field" style={{ width: 200 }}>{t("ed.deadline")}<input type="date" min={minDeadline} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
             </div>
+            {minDeadline && <div className="xs muted" style={{ marginTop: -8, textAlign: "right" }}>{t("ed.deadlineHint")} ({fmtDate(health!.today)})</div>}
             <label className="field">{t("ed.rationale")}<AutoTextarea value={rationale} onChange={(e) => setRationale(e.target.value)} style={{ minHeight: 84 }} /></label>
             <div>
-              <button className="primary" disabled={!valid.valid || !title || !rationale || !deadline || busy}
-                onClick={() => run(async () => { await api.put(`/api/pathway-versions/${v.id}`, { koc_id: kocId, graph: g }); return api.post<{ proposal_id: number }>("/api/proposals", { draft_version_id: v.id, title, rationale, deadline, koc_id: kocId }); }, "✓", (r) => nav(`/koc/proposals/${r.proposal_id}`))}>
+              <button className="primary" disabled={!valid.valid || !title || !rationale || !deadline || (!!minDeadline && deadline < minDeadline) || busy}
+                onClick={() => run(async () => { await store(); return api.post<{ proposal_id: number }>("/api/proposals", { draft_version_id: v.id, title, rationale, deadline, koc_id: kocId }); }, "✓", (r) => nav(`/koc/proposals/${r.proposal_id}`))}>
                 <Icon name="send" />{t("ed.submitBtn")}</button>
             </div>
           </div>

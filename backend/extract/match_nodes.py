@@ -1,8 +1,11 @@
 """Decide whether an uploaded document fulfills a pathway document-step.
 
 Uses the step's title + description (what the coordinator wrote) and the allowed file formats.
-A rule check runs first; the LLM is only asked when the step has a description, lists a `described`
-requirement, and the rule is unsure.
+A rule check runs first. The LLM is asked, with the step's title + description as its brief, when the rule is unsure
+and either the step lists a `described` requirement (it has no machine-readable test, e.g. "lung function tests"),
+or the parser could not classify the document (doc_type "other"). A document the parser did classify (a CT, a lab
+report…) is never re-judged by the LLM for a step that asks for a different exam – that is where a small model
+produced false positives.
 """
 from __future__ import annotations
 
@@ -19,9 +22,11 @@ from backend.pathway.formats import format_ok
 log = logging.getLogger(__name__)
 
 _INSTRUCTION = (
-    "A cancer-pathway step asks for one specific report. Read the step title and description, then the "
-    "document (type, file name, title, excerpt). Return matches=true ONLY if this file IS that report "
-    "(not merely a letter that mentions it). quote must be an exact substring of the document text."
+    "A cancer-pathway step needs the evidence its title and description ask for. Read them, then the document "
+    "(type, file name, title, excerpt). Return matches=true ONLY if this document itself contains that evidence – "
+    "the actual result or report, as the description defines it. A document that only says the exam was done, is "
+    "planned or was requested does not count, unless the description says it does. quote must be an exact "
+    "substring of the document text that proves it."
 )
 
 
@@ -66,9 +71,9 @@ def match_document(nodes: list[dict], *, doc_type: str, exam_type: str | None, f
         title_n, desc = _brief(node)
         hit = _rule_match(node, doc_type, exam_type, filename, title)
         method, quote = "rule", title or filename
-        # the LLM only for steps that ask to be matched by their description; steps with machine-readable
-        # requirements only (the seeded pathways) stay deterministic
-        if not hit and desc and any(r.get("kind") == "described" for r in node.get("requires") or []):
+        described = any(r.get("kind") == "described" for r in node.get("requires") or [])
+        unclassified = doc_type == "other" and not exam_type
+        if not hit and desc and (described or unclassified):
             try:
                 fit = llm.extract(NodeFit, _INSTRUCTION,
                                        f"STEP TITLE: {title_n}\nSTEP DESCRIPTION: {desc}\n"

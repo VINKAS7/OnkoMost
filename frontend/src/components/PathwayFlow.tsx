@@ -7,12 +7,13 @@ import "@xyflow/react/dist/style.css";
 import { useMemo } from "react";
 import { fmtDate } from "../api";
 import { useApp } from "../ctx";
+import { useWidth } from "../facts";
 import type { PathwayGraph, PathwayNode } from "../types";
 import { Icon } from "./Icon";
 
 type Data = { node: PathwayNode; mark?: "added" | "changed"; selected?: boolean; plain: boolean };
 
-const W = 232, H = 92, TW = 168, TH = 40;
+const W = 232, H = 92, TW = 168, TH = 40, MIN_ZOOM = 0.5;
 
 /** Visual class + dot colour of a step: documents → green/red/yellow; process steps → done/to-do; decisions purple. */
 export function nodeClass(n: PathwayNode, plain: boolean): { cls: string; dot: string } {
@@ -78,10 +79,10 @@ function FlowNode({ data }: NodeProps<Node<Data>>) {
     else if (n.status === "available" && n.due_on) sub = `${t("due")} ${fmtDate(n.due_on)}`;
   } else if (n.blocking === false) status = t("pw.optional");
   return (
-    <div className={`fnode ${cls} ${ring}`} title={n.description || label}>
+    <div className={`fnode ${cls} ${ring}`} title={label}>
       <Handle type="target" position={Position.Top} />
       <div className="fhead">
-        <span className="kic"><Icon name={kind.icon} /></span>
+        <span className="kic"><Icon name={!data.plain && n.status === "done" ? "check" : kind.icon} /></span>
         {t(kind.key)}
         {status && <span className="fst">{dot && <span className={`dot ${dot}`} style={{ width: 6, height: 6 }} />}{status}</span>}
       </div>
@@ -135,13 +136,16 @@ export function PathwayFlow({
   framed?: boolean;
 }) {
   const { pick } = useApp();
+  const [box, cw] = useWidth<HTMLDivElement>();
   const pos = useMemo(() => layout(graph), [graph]);
-  // size the canvas to the graph so labels stay readable (min zoom ~0.75) instead of shrinking everything to fit
-  const graphH = useMemo(() => {
-    const ys = Object.values(pos).map((p) => p.y);
-    return (ys.length ? Math.max(...ys) : 0) + H + 40;
+  // Size the canvas to the graph at the zoom that fits its width: the whole pathway is visible and nothing is cropped.
+  // Very wide graphs stop at MIN_ZOOM so labels stay readable; the rest is reached by panning.
+  const [graphW, graphH] = useMemo(() => {
+    const ps = Object.values(pos);
+    return ps.length ? [Math.max(...ps.map((p) => p.x)) + W + 32, Math.max(...ps.map((p) => p.y)) + H + 32] : [W, H];
   }, [pos]);
-  const h = Math.min(Math.max(height, Math.round(graphH * 0.78)), 1500);
+  const zoom = cw ? Math.min(1, Math.max(MIN_ZOOM, (cw - 16) / graphW)) : 1;
+  const h = Math.min(Math.max(Math.round(graphH * zoom) + 24, Math.min(height, 420)), 1600);
   const byId = useMemo(() => Object.fromEntries(graph.nodes.map((n) => [n.id, n])), [graph]);
   const nodes: Node<Data>[] = graph.nodes.map((n) => ({
     id: n.id, type: "pathway", position: pos[n.id], draggable: false, connectable: !!editable,
@@ -169,15 +173,15 @@ export function PathwayFlow({
     };
   });
   return (
-    <div className="flow" style={{ height: h, ...(framed ? {} : { border: "none", borderRadius: 0, boxShadow: "none" }) }}
+    <div className="flow" ref={box} style={{ height: h, ...(framed ? {} : { border: "none", borderRadius: 0, boxShadow: "none" }) }}
       onDragOver={onDropKind ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } : undefined}
       onDrop={onDropKind ? (e) => {
         e.preventDefault();
         const kind = e.dataTransfer.getData("application/onkomost-node") || e.dataTransfer.getData("text/plain");
         if (kind) onDropKind(kind);
       } : undefined}>
-      <ReactFlow
-        nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.05, minZoom: 0.62, maxZoom: 1 }} minZoom={0.2} maxZoom={1.6}
+      {cw > 0 && <ReactFlow key={`${Math.round(cw / 24)}-${graph.nodes.length}`}
+        nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.03, minZoom: MIN_ZOOM, maxZoom: 1 }} minZoom={0.2} maxZoom={1.6}
         nodesConnectable={!!editable} onConnect={onConnect}
         onNodeClick={(_, n) => onSelect?.(n.id)} onPaneClick={() => onSelect?.(null)}
         onEdgeDoubleClick={editable ? (_, e) => onDeleteEdge?.(e.source, e.target) : undefined}
@@ -185,7 +189,7 @@ export function PathwayFlow({
       >
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} color="var(--line-strong)" />
         <Controls showInteractive={false} position="top-right" orientation="horizontal" />
-      </ReactFlow>
+      </ReactFlow>}
     </div>
   );
 }

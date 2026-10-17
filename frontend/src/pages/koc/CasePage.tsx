@@ -1,6 +1,7 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { fmtDate } from "../../api";
 import { Icon } from "../../components/Icon";
+import { JourneyTimeline } from "../../components/JourneyTimeline";
 import { DocCounts, Progress, StateTag } from "../../components/ui";
 import { useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
@@ -45,7 +46,7 @@ export default function CasePage() {
               <div>
                 <h1 style={{ fontSize: 26 }}>{c.patient_name}</h1>
                 <div className="meta" style={{ marginTop: 4 }}>
-                  <span>{age(c.dob, c.today)} · RČ {c.rc}</span>
+                  <span>{age(c.dob, c.today)} {t("age.y")} · RČ {c.rc}</span>
                   <span>{pick(c.pathway.name, c.pathway.name_en)} v{c.pathway.version}</span>
                   <span>{t("referred")} {fmtDate(c.created_on)} · {c.referring_doctor?.name}</span>
                   {c.mdt_date && <span>MDT {fmtDate(c.mdt_date)}</span>}
@@ -55,6 +56,7 @@ export default function CasePage() {
             <div className="row" style={{ gap: 16 }}><DocCounts counts={c.doc_counts} /><StateTag state={c.state} /></div>
           </div>
           <Progress states={c.states} index={c.state_index} />
+          <JourneyTimeline c={c} />
         </div>
       </section>
       <div className="tabs" role="tablist">

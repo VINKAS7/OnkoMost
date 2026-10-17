@@ -69,7 +69,7 @@ The MDT workspace opens with a body map on the left. It uses the [EBI Expression
    - The quote names the organ. If the model filed it under the wrong organ, the quote decides which organ it belongs to.
    - A "negative" quote actually reads as negative.
 4. **Merge.** There is one entry per organ, and the most severe status wins. When reports disagree about an organ, it is flagged as a **conflict**.
-5. **Fallback.** The organ of the case's pathway (lung, pancreas, colon/rectum, breast) is always shown, marked "from the referral diagnosis" when no report names it.
+5. **Fallback.** The organ of the case's pathway (lung, pancreas, breast) is always shown, marked "from the referral diagnosis" when no report names it.
 
 Using the map:
 - The figure follows the patient's sex, taken from the RČ.
@@ -80,21 +80,27 @@ Using the map:
 
 ### Cancer pathways (one per cancer type)
 
-| Pathway | ICD-10 | Source |
-|---|---|---|
-| 🫁 Lung cancer | C34 | Follows the "current lung cancer pathway" flowchart: referral → triage → CT → diagnostic MDT → outpatient → **curative** (PET-CT → biopsy/EBUS → MRI) / **non-radical** (biopsy → MRI) / **no biopsy** → treatment MDT → decision to treat |
-| 🧬 Pancreatic cancer | C25 | Built from the Rakathon sample case (CT pancreatic protocol, anticoagulant pause, EUS-FNB, histology, CA 19-9, supportive care) |
-| 🩻 Colorectal cancer | C18–C20 | Draft skeleton (colonoscopy + histology, staging CT, pelvic MRI, CEA) |
-| 🎗️ Breast cancer | C50 | Draft skeleton (mammography + ultrasound, core biopsy, staging) |
+Each pathway follows the current **ESMO Clinical Practice Guidelines** ([esmo.org/guidelines](https://www.esmo.org/guidelines)):
 
-All four are **drafts for clinicians to validate** against the ČOS guidelines. They live in `seed/pathways/*.json`. Colorectal and breast reuse a standard ending (handover → treatment MDT → decision to treat with 5 options → feedback → K2 → closed). Steps after a decision (e.g. lung PET-CT) are shown as **"depends on decision"** until the route is chosen, then become required or "not needed".
+| Pathway | ICD-10 | Guideline | Diagnostic work-up |
+|---|---|---|---|
+| 🫁 Lung cancer | C34 | ESMO early & locally advanced NSCLC (Zer et al., Ann Oncol 2025; staging per Postmus et al. 2017) + metastatic NSCLC (Hendriks et al., Ann Oncol 2023) | CT chest + upper abdomen, labs → **diagnostic MDT: extent of disease** → *potentially curable*: PET-CT, lung function (FEV1, DLCO), invasive mediastinal staging (EBUS/EUS, if indicated) / *metastatic* → brain MRI, tissue sampling, histology (WHO 2021 subtype), **biomarkers** (PD-L1, EGFR, ALK, NGS panel; skipped automatically for small-cell carcinoma) |
+| 🧬 Pancreatic cancer | C25 | ESMO pancreatic cancer (Conroy et al., Ann Oncol 2023) | Multiphasic CT chest–abdomen–pelvis (pancreatic protocol), labs + CA 19-9, anticoagulant pause, EUS-FNB, histology; optional: liver MRI, PET-CT, biliary drainage, germline BRCA1/2, tumour KRAS/MSI/NTRK; supportive care |
+| 🎗️ Breast cancer | C50 | ESMO early breast cancer (Loibl et al., Ann Oncol 2024) | Family history + menopausal status, bilateral mammography + breast/axillary ultrasound, core biopsy, ER/PR/HER2/Ki-67, labs; optional: breast MRI, distant staging (CT + bone scan / PET-CT), germline BRCA1/2, echocardiography, fertility counselling |
+
+Every step has a **title** (the only text on the canvas) and, when opened:
+- **what it needs** – the description. It is also the LLM's brief: when a document arrives, steps without a machine-readable test (e.g. "lung function", "biomarkers") are matched by the LLM from the step's title + description, and it must quote the passage that proves the match;
+- **why it is in the pathway** – the ESMO recommendation and its evidence level, e.g. `[III, A]`;
+- the **accepted file formats**, whether it is **required** before the MDT or **optional**, and, in a case, the parsed document that satisfies it (✓).
+
+All pathways reuse a standard ending (handover → treatment MDT → decision to treat with 5 options → feedback → K2 → closed). Steps after a decision (e.g. lung PET-CT) are shown as **"depends on decision"** until the decision is made, then become required or "not needed". They live in `seed/pathways/*.json` and are still **for clinicians to validate** before clinical use; the turnaround targets (SLA days) are local, not from ESMO.
 
 **National governance.** Every KOC uses the same pathway per cancer type. A change is made in a **draft** and the draft is put to a vote. It passes only with **YES from more than half of all KOCs** (not only of those who voted) before the deadline. New referrals use the new version. Running cases stay on the version they started with.
 
 ## Design rules
 
 1. **AI prepares, people decide.** The local LLM (`qwen3.5:4b`) only turns short free-text sections into lists, drafts request letters, suggests treatments from an imported MDT conclusion, and answers GraphRAG questions. Every extracted value keeps its source quote. If the quote isn't found in the document, the value is marked "check source". A doctor confirms the handover and the MDT confirms the decision.
-2. **The comparison with the pathway is not done by the LLM.** Every pathway step has a machine-readable `requires` list (e.g. `{"kind": "exam", "exam_type": "ct"}`), and each one is checked by a fixed query over the patient's graph in IRIS. That is what drives green / red / yellow.
+2. **The comparison with the pathway is a fixed query, with the LLM only where a rule can't decide.** A pathway step has a `requires` list (e.g. `{"kind": "exam", "exam_type": "ct"}`), and each one is checked by a fixed query over the patient's graph in IRIS. That is what drives green / red / yellow. Steps marked `{"kind": "described"}` (and documents the parser could not classify) are matched by the LLM from the step's title + description, with a quote from the document as proof; a document the parser did classify is never re-judged for a different exam.
 3. **GraphRAG on InterSystems IRIS** (after [IRIS-Global-GraphRAG](https://github.com/fanji-isc/IRIS-Global-GraphRAG) and [iris-vector-rag](https://github.com/intersystems-community/iris-vector-rag)):
    - The LLM turns the question (EN or CS) into Czech search terms.
    - Document chunks live in the IRIS SQL table `Onk.DocChunk` with a `VECTOR` column. Retrieval fuses **BM25 over the Czech terms** (light Czech stemming) with **vector search on the question** (`qwen3-embedding:0.6b` in Ollama, multilingual, so an English question finds Czech text) by reciprocal rank fusion. With `EMBED_MODEL` empty, or Ollama unreachable, only the keyword leg runs.
@@ -137,7 +143,7 @@ conda run -n Deep_Learning python -m backend.config --check
 # 2. load the sample case (pick where the story should stop)
 conda run -n Deep_Learning python -m scripts.seed_demo --until histology    # diagnostics done, conflicts open
 conda run -n Deep_Learning python -m scripts.seed_demo                      # whole story, ends closed
-# optional: three more fictional MDT patients (lung, colorectal with liver metastases, breast) + their body maps
+# optional: two more fictional MDT patients (lung, breast) + their body maps
 conda run -n Deep_Learning python -m scripts.seed_cancer_demos --bodymap
 
 # 3. start (serves the built UI too) → http://localhost:8000
@@ -158,21 +164,22 @@ It sets the **demo date** to the date of each event (the sample case happens in 
 conda run -n Deep_Learning python -m pytest tests -q
 ```
 
-There are 36 tests. Among other things they check:
+There are 40 tests. Among other things they check:
 - extraction rules
 - the RČ / identity check
 - missing reports found from the referral alone
 - a wrong-patient document gets blocked
 - the **answer key** (`MDT zaver.docx`): CA 19-9 = 312, G2–G3, C25.0, CT 35 mm, the 3 comorbidities, 7 MDT members, ECOG missing, both impossible dates flagged, post-MDT reports excluded
 - green / red / yellow document status on the pathway
-- the lung route decision (PET-CT "depends on decision", then skipped for non-radical; single choice enforced)
+- the lung extent decision (PET-CT and lung function "depend on decision", then skipped for metastatic disease; single choice enforced) and the biomarker step skipped only for small-cell carcinoma
+- every seeded ESMO step has a title, description and "why" in both languages, and every evidence step lists its file formats
 - GraphRAG finds CA 19-9 = 312 and cannot see the post-MDT pain report
 - the feedback loop closes the case (MDT chose chemotherapy)
 - the final MDT record contains the conclusion, the recommendations and the decision, and is attached to the GP message even without an imported .docx
 - a question to the GP creates a waiting task that closes when the GP replies or uploads a document
 - a review-doctor question creates a high-priority coordinator task and appears in notifications
 - notifications list overdue tasks per centre
-- governance (3 of 6 yes → rejected, 4 of 6 → active, a running case keeps v1)
+- governance (3 of 6 yes → rejected, 4 of 6 → active, a running case keeps v1; a new cancer type goes through the same vote, ICD codes can't overlap, an unsubmitted draft can be discarded)
 - the body map's checks: a quote not in the report is dropped, the report's wording decides the organ, status and side ("HER2 negativní" does not make a carcinoma negative; "bez ložisek, bez metastáz" stays negative), the most severe status wins, conflicts are flagged only on the same side, the pathway organ is the fallback, sex from the RČ
 - identity is only in FHIR: the case table has no name/RČ columns, and the graph globals and GraphRAG chunks contain no RČ or name
 - **non-Onkomost FHIR data is unchanged**
@@ -193,7 +200,7 @@ The tests use their own SQLite file, but they rebuild Onkomost's data in IRIS (`
    - The *Document checklist* explains each item.
    - Mark the conflicts as reviewed. On a *missing data* task click **Ask GP**: a pre-filled question goes to the referring doctor; in the GP workspace answer it (or upload a document) and the waiting task closes.
    - Validate the **Handover** (sources marked AI were read by the LLM), and generate the MDT briefing under **MDT & result**.
-4. **🗺️ Cancer pathways → Lung** – the flowchart from the brief, with the curative / non-radical / no-biopsy route.
+4. **🗺️ Cancer pathways → Lung** – the ESMO work-up with the *potentially curable* / *metastatic* decision; open any step to see what it needs, why (ESMO recommendation + evidence level), its file formats and whether it is optional.
 5. **⚕️ MDT → Alena**:
    - The **body map**:
      - the female figure, with the pancreas as the primary tumour, the mesenteric vessels involved, and a suspicious peripancreatic lymph node
@@ -214,7 +221,7 @@ The tests use their own SQLite file, but they rebuild Onkomost's data in IRIS (`
 backend/
   config.py              settings from backend/.env; `python -m backend.config --check`
   api.py                 REST API (+ serves frontend/dist)
-  seed.py                KOCs + cancer pathways (standard MDT ending for skeleton pathways)
+  seed.py                KOCs + cancer pathways (standard MDT ending shared by all pathways)
   ingest/                reader (docx/OCR, sections, header), classify, identity (RČ)
   extract/               pipeline (rules + LLM), labs, schemas, verify (quote check), llm (Ollama client + cache)
   rag/ask.py             GraphRAG: hybrid chunk retrieval + graph facts → LLM answer with citations
@@ -230,18 +237,18 @@ backend/
   workflow/              db (SQLAlchemy models, demo clock, audit), service (cases, tasks, decisions, states, actions)
 frontend/src/            React app: i18n.ts (EN/CS), pages/gp (GP portal), pages/koc (patients, case tabs, pathways,
                          editor, proposals, outbox), pages/mdt (meetings, workspace with GraphRAG + decision), AckPage
-seed/                    kocs.json (6 fictional KOCs), pathways/*.json (lung, pancreas, colorectal, breast)
+seed/                    kocs.json (6 fictional KOCs), pathways/*.json (lung, pancreas, breast – ESMO-based)
 scripts/seed_demo.py     replays the Rakathon sample case day by day
-scripts/seed_cancer_demos.py  three more fictional MDT patients (lung, colorectal, breast)
+scripts/seed_cancer_demos.py  two more fictional MDT patients (lung, breast)
 tests/                   pytest suite
 storage/                 raw/ (immutable originals), llm_cache/, reports/ (generated .docx), bodymap/ (body map results)
 ```
 
 ## Known limits (prototype)
 
-- **The pathways are drafts.** Lung follows the published flowchart; pancreas is derived from the sample case; colorectal and breast are skeletons. All must be checked by clinicians against the ČOS guidelines.
+- **The pathways follow ESMO but are not clinically validated.** The full text of the 2025 early-NSCLC guideline could not be retrieved, so lung staging details follow the 2017 edition it updates. Recommendation numbers and evidence levels for pancreas, breast and metastatic NSCLC were taken from ESMO's open-access Pan-Asian adaptations, which reproduce the original recommendations. Clinicians must check them (and the national ČOS guidelines) before clinical use.
 - **No logins:** the workspace choice and the KOC switcher stand in for authentication. The GP sees "their" referrals by name. There are no real emails (Outbox) and no hospital-system integration.
-- **Only one real sample patient exists** (pancreatic). `seed_cancer_demos` adds short synthetic lung, colorectal and breast cases for demonstration.
+- **Only one real sample patient exists** (pancreatic). `seed_cancer_demos` adds short synthetic lung and breast cases for demonstration.
 - **The body map is coarse.** The anatomogram has one shape per organ: no lobes or lymph-node stations, and the vessel shape is the whole arterial tree. Sides are shown as text. Some organs are only drawn in one of the figures.
 - **A 4B LLM is small and Czech is not its main language.** That's why rules come first, quotes are checked, citations are grounded deterministically, and every value is confirmed by a person. GraphRAG answers take ~10–20 s on an RTX 3060 (6 GB).
 - The ICD-10 code of the confirmed diagnosis is taken from the GP's suspected diagnosis and marked "to verify at MDT".
