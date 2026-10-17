@@ -10,7 +10,7 @@ from datetime import date
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -311,6 +311,23 @@ def mdt_report_docx(case_id: int):
             raise HTTPException(404, "report not generated yet")
         path = svc._abs(c.mdt_report_path)
     return FileResponse(path, filename=path.name)
+
+
+@app.get("/api/cases/{case_id}/mdt/summary.docx")
+def mdt_summary_docx(case_id: int, lang: str = "cs"):
+    """One-sheet MDT summary (patient, cancer, findings, labs, journey, open issues) as an editable Word document."""
+    from backend.reports import summary as sm
+    s = svc.mdt_summary(case_id, lang, "docx")
+    return Response(sm.to_docx(s), headers={"Content-Disposition": f'attachment; filename="{s["filename"]}"'},
+                    media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@app.get("/api/cases/{case_id}/mdt/summary")
+def mdt_summary(case_id: int, lang: str = "cs"):
+    """The same summary for the clipboard: HTML (keeps the tables when pasted) + plain text."""
+    from backend.reports import summary as sm
+    s = svc.mdt_summary(case_id, lang, "copy")
+    return ok({"title": s["title"], "html": sm.to_html(s), "text": sm.to_text(s)})
 
 
 @app.post("/api/cases/{case_id}/mdt/import")

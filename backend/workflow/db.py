@@ -285,9 +285,6 @@ class AuditLog(Base):
 
 def init_db() -> None:
     insp = inspect(engine)
-    if insp.has_table("cases") and "patient_name" in {c["name"] for c in insp.get_columns("cases")}:
-        raise RuntimeError(f"{settings.sqlite_url} was created by the Neo4j version and still holds patient identity. "
-                           "Rebuild it: python -m scripts.seed_demo --reset-only (or delete the file), then seed again.")
     Base.metadata.create_all(engine)
     _nullable_proposal_base(insp)
 

@@ -118,8 +118,8 @@ NOT_SYMPTOM = re.compile(r"\bbez\b|neguje|nemel|nema\b|sobestac|pracovni neschop
 
 
 def is_not_a_symptom(name: str, onset: str | None, quote: str | None) -> bool:
-    """A small (4B) LLM sometimes lists denied symptoms ('bez dušnosti'), status remarks or bare time phrases
-    ('v noci'); drop those."""
+    """The LLM sometimes lists denied symptoms ('bez dušnosti'), status remarks or bare time phrases ('v noci');
+    drop those."""
     if re.match(r"^(v|ve|po|pri|od|do|na)\s", fold(name).strip()):
         return True
     return bool(NOT_SYMPTOM.search(fold(" ".join(x for x in (name, onset or "", quote or "") if x))))
@@ -303,7 +303,7 @@ class Extractor:
             self.symptoms(epi, "EPIKRÍZA")
         req = self.doc.section("ŽÁDOST")
         if req:
-            # The request is a plain "Žádám o …" sentence; copying it verbatim beats asking a 4B model.
+            # The request is a plain "Žádám o …" sentence; copying it verbatim beats asking the LLM.
             sentences = [x for line in req.splitlines() for x in re.split(r"(?<=\.)\s+", line)]
             ask = [s for s in sentences if re.match(r"^(Žádám|Prosím)", s) or "MDT" in s or "urgent" in s]
             if ask:
@@ -326,7 +326,7 @@ class Extractor:
             self.symptoms(sub, "SUBJEKTIVNĚ")
 
     def symptoms(self, text: str, section: str) -> None:
-        # One paragraph per call: a 4B model is more accurate (and never truncates) on short inputs.
+        # One paragraph per call: the LLM is more accurate (and never truncates) on short inputs.
         seen = set()
         objective = re.compile(r"^(objektivn|laboratorn|zaver|terapie|doporuceni|rtg|uz\b|ct\b)")
         for para in (p for p in text.splitlines() if len(p) > 30 and not objective.match(fold(p))):

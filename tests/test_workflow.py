@@ -1,5 +1,6 @@
 """End-to-end against IRIS (graph + FHIR) + LLM cache: the sample case replayed through the workflow,
 checked against the Rakathon answer key (MDT zaver.docx)."""
+import io
 from datetime import date, timedelta
 
 import docx
@@ -213,6 +214,26 @@ def test_lung_pathway_extent_decision(fresh):
     assert nodes["biopsy"]["doc_status"] == "missing" and nodes["brain_mri"]["doc_status"] == "missing"
     with pytest.raises(svc.WorkflowError):
         svc.choose_decision(lung, "extent", ["radical", "metastatic"], "test")  # single choice only
+
+
+def test_mdt_summary_for_the_sample_case(fresh):
+    """The one-sheet MDT summary: cancer details, markers, open issues, charts – only documents up to the MDT date."""
+    from backend.reports import summary as sm
+    case_id = seed_demo.run("ready")
+    s = svc.mdt_summary(case_id, "cs")
+    text = sm.to_text(s)
+    assert "Duktální adenokarcinom pankreatu" in text and "MKN-10: C25.0" in text and "Grade: G2–G3" in text
+    assert "CA 19-9 | 312 kU/l (15. 10. 2026)" in text  # tumour markers in the lab table
+    assert "Chybí údaj: Stav výkonnosti (ECOG / Karnofsky)" in text  # a clinical gap for the MDT
+    assert "e-mail" not in text.split("PŘED ROZHODNUTÍM OVĚŘIT")[1].split("DŮLEŽITÁ")[0].lower()  # optional form fields
+    assert "Algeziolog (volitelné) | chybí" in text  # as of the MDT date: the pain report (26. 10.) comes later
+    assert sum(1 for b in s["blocks"] if b[0] == "img") == 2  # lab trends + journey timeline
+    d = docx.Document(io.BytesIO(sm.to_docx(s)))
+    assert len(d.inline_shapes) == 2 and any("Nádorové markery" in c.text for t in d.tables for r in t.rows for c in r.cells)
+    assert "PATIENT JOURNEY" in sm.to_text(svc.mdt_summary(case_id, "en"))
+    with session_scope() as s_:
+        from backend.workflow.db import AuditLog
+        assert s_.query(AuditLog).filter_by(case_id=case_id, action="mdt.summary_exported").count() == 2
 
 
 def test_graphrag_finds_tumour_marker(fresh):

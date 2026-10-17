@@ -1,0 +1,17 @@
+# Python 3.10 or newer. Install with: pip install -r requirements.txt
+fastapi==0.116.1
+uvicorn==0.35.0
+python-multipart==0.0.20
+SQLAlchemy==2.0.41
+pydantic==2.11.7
+python-dotenv==1.1.1
+httpx==0.28.1
+python-docx==1.2.0
+matplotlib==3.10.5
+# InterSystems IRIS driver (SQL + native API for globals)
+intersystems-irispython==5.3.2
+pytest==8.4.1
+
+# Optional, only for scanned PDFs and images (also needs Tesseract with the Czech "ces" language pack):
+# pytesseract
+# pillow

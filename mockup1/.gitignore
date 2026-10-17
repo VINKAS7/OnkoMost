@@ -1,4 +1,0 @@
-*.key
-.venv/
-backend/.env
-__pycache__/

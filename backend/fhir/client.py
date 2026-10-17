@@ -1,7 +1,7 @@
 """Small FHIR R4 REST client for the IRIS for Health FHIR server (infra/iris).
 
 Every resource Onkomost writes carries the meta tag TAG, so `delete_tagged` / `foreign_counts` can tell our data
-from anything else on the server – the same rule the old Neo4j store kept with the :Onk label.
+from anything else on the server.
 """
 from __future__ import annotations
 

@@ -1,6 +1,0 @@
-- [Přehled a demo scénář](/)
-- **Obrazovky**
-  - [01 Referující lékař (GP)](gp.md)
-  - [02 Koordinátor KOC](koordinator.md)
-  - [03 Revizní lékař VZP](revizni.md)
-  - [04 MDT – konzilium](mdt.md)

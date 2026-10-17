@@ -1,257 +1,333 @@
-# Onkomost (OncoBridge)
+# Onkomost
 
-**A shared platform for Czech cancer centres (KOC) that takes a patient from the GP's referral to the MDT decision and back to the GP, without losing information.**
+Onkomost helps a cancer patient's information travel safely from the family doctor to a cancer centre, through the
+team that decides the treatment, and back to the family doctor. Nothing gets lost on the way, and everyone can see
+what is done, what is missing and who is next.
 
-Built for the Rakathon 2026 challenge *"Cesta pacienta bez ztráty informací"* (*The patient's journey without losing information*). The challenge itself is explained in plain English in `…/cesta-pacienta-data/rakathon_final_all/README.md`.
+It was built for the Rakathon 2026 challenge "Cesta pacienta bez ztráty informací" (the patient's journey without
+losing information), set by the Czech health insurer VZP. All patient data in this repository is fictional.
 
-> All patient data is fictional (the Rakathon sample patient *Alena Procházková*).
+## The problem
 
----
+When a family doctor suspects cancer, they send the patient to a cancer centre (in Czech: KOC, Komplexní
+onkologické centrum). The patient arrives with a pile of reports from different clinics: blood tests, an ultrasound,
+a CT scan, letters. A coordinator at the centre has to read all of it, work out which tests are still missing,
+chase the clinics for reports, and prepare the case for the multidisciplinary team (MDT), the group of specialists
+who decide the treatment. After the meeting, the result has to go back to the family doctor and the insurer.
 
-## Three workspaces
+Today much of this happens by phone, e-mail and paper. Reports get lost, tests get repeated, and the family doctor
+often does not hear back.
 
-| Workspace | Who | What they do |
+## What Onkomost does
+
+1. **The family doctor refers the patient.** They type only the patient's name, birth number (rodné číslo) and the
+   suspected cancer type, and upload the reports they already have. No long form.
+2. **The documents are read automatically.** Simple rules read the parts that always look the same (lab tables,
+   dates, diagnosis codes). A language model reads the free text (symptoms, medication, history). Every value keeps
+   the exact sentence it came from, so a person can check it.
+3. **The case is compared with the cancer pathway.** Each cancer type has a pathway: the list of tests and steps
+   a patient needs before the MDT, based on the ESMO clinical guidelines. Each step shows green (we have the report),
+   red (it is missing) or yellow (two reports contradict each other). Missing reports become tasks with an owner and
+   a deadline.
+4. **The coordinator prepares the case.** They request missing reports, book tests, check conflicts and ask the
+   family doctor questions. A doctor at the centre confirms the handover, the structured summary for the MDT.
+5. **The MDT decides.** The team sees a body map of the affected organs, a case brief, warnings, and can ask
+   questions about the case in plain language ("What is the CA 19-9?"). Every answer cites the report it comes from.
+   They can download a summary of the patient (an editable Word file with tables and charts) to discuss, and they
+   record the decision.
+6. **The result goes back.** The family doctor gets the MDT record and confirms receipt. The insurer's review doctor
+   gets a summary and can ask for more information. The case is handed to the treatment coordinator and closed.
+
+The app has three workspaces, one for each role:
+
+- **Referring doctor** (`/gp`): send a referral, follow its status, read the result, confirm receipt.
+- **Cancer centre** (`/koc`): the patient list, each patient's pathway, tasks, documents, handover, messages, the
+  result to send, and voting on changes to the pathways.
+- **MDT meeting** (`/mdt`): body map, case brief, questions about the case, original documents, the summary
+  download, and the decision to treat.
+
+The whole interface works in English and Czech.
+
+### Shared pathways and voting
+
+Every cancer centre in the country uses the same pathway for a given cancer type, so a patient gets the same work-up
+wherever they go. A centre can propose a change (for example, adding a genetic test). The change is put to a vote
+and passes only when more than half of all centres vote yes before the deadline. New referrals then use the new
+version; patients already on the old version keep it. The project comes with pathways for lung, pancreatic and
+breast cancer. They follow ESMO guidelines but have not been validated by clinicians.
+
+## How InterSystems IRIS is used
+
+All patient data lives in one InterSystems IRIS for Health server. IRIS is a database from InterSystems that
+combines several kinds of storage in one product, and Onkomost uses four of them. The free Community edition is
+enough; it runs in Docker (see `infra/iris`).
+
+| IRIS feature | What Onkomost keeps there | Why |
 |---|---|---|
-| 🩺 **Referring doctor** (`/gp`) | GP or specialist | Enters only the **patient's name, birth number (RČ) and suspected cancer type**, picks a KOC and uploads the documents they already have. Later sees the case status, the MDT result, and confirms receipt. |
-| 🏥 **Cancer centre – KOC** (`/koc`) | Coordinator | Sees each patient **on the pathway for their cancer type** (React Flow). Every step that needs a document is **green** (we have it), **red** (missing) or **yellow** (conflict between documents). Also: next steps with owners and deadlines, handover, documents, patient graph, sending the result, and **voting on pathway changes**. |
-| ⚕️ **MDT meeting** (`/mdt`) | Multidisciplinary team | A **body map** (organs affected by the cancer, read by the LLM from the reports), case brief, warnings, **"Ask the case" (GraphRAG)** with cited sources, a sidebar of **original documents to download**, and the **decision to treat**: active monitoring / palliative care / chemotherapy / radiotherapy / surgery (more than one can be chosen). |
+| FHIR R4 server | Who the patient is, and the documents themselves | See the next section |
+| Globals | The patient graph: every fact (diagnosis, test, lab value, medication) linked to the report it came from | Fast, flexible storage that fits a graph |
+| SQL with a VECTOR column | The report text cut into short pieces, with an embedding for each piece | Search by meaning inside the same database |
+| Python driver (SQL and native API) | The connection from the backend | One driver for SQL and globals |
 
-The whole UI switches between **English and Czech** (EN | CS in the sidebar). The design is minimal: no icons or emoji, status shown as small coloured dots.
+**Globals** are IRIS's native storage: sorted, multi-level keys, a bit like a very large nested dictionary that is
+saved to disk and supports transactions. Onkomost stores one small graph per patient under the global `^OnkGraph`:
+the patient, their documents, the facts read from each document, and warnings such as two dates that contradict
+each other. Each fact points to the documents and sentences that state it. The cancer pathway check is a set of
+fixed queries over this graph, so the green, red and yellow colours come from rules, not from the language model.
+This follows the [IRIS-Global-GraphRAG](https://github.com/fanji-isc/IRIS-Global-GraphRAG) pattern.
 
-```
-GP: name + RČ + cancer type + documents
-        │
-        ▼
-raw files stored unchanged ─► identity check (RČ + name + birth date) ─► rules + LLM extract facts with quotes
-        │
-        ▼
-FHIR server (identity + documents) · IRIS globals patient graph (pseudonymous: patient → facts → documents)
-+ document chunks in an IRIS SQL vector table (keyword BM25 + vector search)
-        │
-        ▼
-KOC: patient graph vs. the cancer's pathway (fixed queries, no AI)
-     green = have it · red = missing · yellow = conflict · dashed = depends on a decision
-     → request missing reports, book exams, review conflicts, validate the handover
-        │
-        ▼
-MDT: case brief + GraphRAG questions (only documents up to the MDT date) → decision to treat
-        │
-        ▼
-KOC: result to the GP (receipt link) + insurer's review doctor → handover to K2 → closed
-GP:  sees the result in their workspace and confirms receipt
-```
+**Vector search in SQL.** Each report is split into short pieces and stored in the SQL table `Onk.DocChunk`
+together with an embedding, a list of numbers that captures the meaning of the text. IRIS can compare these vectors
+directly in SQL (`VECTOR_COSINE`), so a question in English finds the right passage in a Czech report. Because it is
+ordinary SQL, the same query also limits the search to one patient and to reports dated before the MDT meeting.
+There is no separate vector database to run. This follows
+[iris-vector-rag](https://github.com/intersystems-community/iris-vector-rag).
 
-The **8 case states** from the brief are computed from pathway progress:
-Sent → In triage → Waiting for documents → Complete → Ready for MDT → MDT conclusion → Feedback sent → Closed.
+Onkomost only touches its own data: the global `^OnkGraph`, the table `Onk.DocChunk` and FHIR resources tagged
+`onkomost`. A test checks that nothing else on the server changes.
 
-### How it covers the Rakathon brief
+## Where FHIR is used, and why
 
-| Slide / requirement | Where in Onkomost |
+FHIR (Fast Healthcare Interoperability Resources) is the international standard for exchanging health data. IRIS
+for Health includes a FHIR R4 server, and Onkomost uses it for everything that identifies a patient:
+
+- **Patient**: name, birth number, birth date, sex, insurer, address and phone.
+- **RelatedPerson**: contact persons, such as a daughter the patient allowed us to inform.
+- **DocumentReference**: each received report, with its text and the original file.
+
+There are two reasons for this:
+
+1. **Privacy by separation.** The identity of the patient is kept in one place. The patient graph, the search
+   index and the workflow database only know a random patient ID. Names and birth numbers are also masked in the
+   text that is indexed for search. If someone gets access to the analytics data, they cannot tell who the patient
+   is.
+2. **Hospitals already speak FHIR.** Any FHIR-capable system can read the patient and the documents from the
+   standard endpoint (`/fhir/r4`) without knowing anything about Onkomost. This is how the platform would connect to
+   real hospital systems later.
+
+The FHIR server is set up the same way as in the
+[FHIR-AI-Hackathon-Kit](https://github.com/intersystems-community/FHIR-AI-Hackathon-Kit/tree/V2).
+
+## How the AI is used
+
+The rule is simple: **AI prepares, people decide.** The language model reads free text, drafts letters, suggests
+the treatment from an imported MDT conclusion and answers questions about the case. It never decides anything on
+its own.
+
+- Every value it extracts must come with a quote from the report. If the quote is not found in the report, the
+  value is marked for checking.
+- A doctor confirms the handover, and the MDT confirms the decision.
+- Anything with a fixed format (lab tables, codes, dates) is read by rules, not by the model.
+- Missing data is reported as missing, never guessed.
+- Only reports dated on or before the MDT date are used, so the team sees the case as it was on the day.
+
+Questions about a case go through three steps:
+
+1. **Find candidates.** Keyword search (BM25 with light Czech word stemming) and vector search on the question run
+   side by side in IRIS, and their results are merged.
+2. **Rerank.** A reranker model reads each candidate together with the question and keeps the best ones.
+3. **Answer.** The language model answers only from those passages and the patient graph, and cites each report as
+   `[D12]`. A final check makes sure the cited report really contains the answer; otherwise the answer is marked as
+   not backed by a document.
+
+The models run behind any OpenAI-compatible API. The default setup uses the
+[e-INFRA CZ](https://llm.ai.e-infra.cz/status/) service:
+
+| Job | Model |
 |---|---|
-| 01 Referral without a new big form: pick a KOC, patient data, upload own reports (slide 7) | GP workspace `/gp` |
-| 02 AI extraction into a fixed structure, missing data flagged, copy-able parts (slide 8) | KOC → case → Handover |
-| 02 AI only drafts, a doctor validates (slide 8) | "Validate handover" by the KOC doctor (our reading of slide 8) |
-| 02 Coordinator contacts the doctor for more information (slide 8) | Case → Messages / "Ask GP" (pre-filled from missing data); the GP answers or uploads in `/gp`. Clinics get report requests (Outbox) |
-| 03 Queue new / active / on hold; detail with referral context + original; tasks with deadline and priority (slide 9) | KOC → Patients, case → Pathway |
-| 03 Task set per diagnosis, order of steps, communication, deadline notifications, 8 states (slide 10) | Pathways, case flowchart, Messages, **Notifications** in the top bar, progress bar |
-| 04 Result to the referring doctor with the original context; review doctor informed automatically and can ask for more; confirm and close (slide 11) | Case → MDT & result; GP confirms in `/gp`; the review doctor's link has "Request more information"; K2 handover closes the case |
-| Structured KOC / MDT conclusion (slide 12) | MDT workspace decision → **final MDT record** (MDT_zapis .docx with 6 "Závěr MDT" and 7 "Doporučení MDT" filled) attached to the GP's message |
-| Zadání: MDT report as of 21. 10. 2026 (later reports excluded), send to the GP with proof of delivery | MDT briefing / final record, receipt link |
+| Reading reports, answering questions | `deepseek-v4.1-flash` |
+| Embeddings for search | `qwen3-embedding-4b` |
+| Reranking search results | `qwen3-reranker-4b` |
 
-### MDT body map
+You can switch to another provider, or to a local [Ollama](https://ollama.com), by changing `backend/.env`.
 
-The MDT workspace opens with a body map on the left. It uses the [EBI Expression Atlas anatomogram](https://github.com/gxa/anatomogram) (CC BY 4.0), and the backend code is in `backend/reports/bodymap.py`.
+## Getting started
 
-1. **Read the reports.** All reports dated on or before the MDT date are read, the same cut-off as the brief and GraphRAG. Labs, pain and psychology reports are skipped.
-2. **Extract.** The LLM lists, for each report section, the organs with a finding. Each finding has an organ from a fixed list, a status (*primary tumour, metastasis, involved, suspicious, examined negative*) and a verbatim Czech quote.
-3. **Verify.** A finding is kept only when all of these hold:
-   - Its quote is in the report.
-   - The quote names the organ. If the model filed it under the wrong organ, the quote decides which organ it belongs to.
-   - A "negative" quote actually reads as negative.
-4. **Merge.** There is one entry per organ, and the most severe status wins. When reports disagree about an organ, it is flagged as a **conflict**.
-5. **Fallback.** The organ of the case's pathway (lung, pancreas, breast) is always shown, marked "from the referral diagnosis" when no report names it.
+### What you need
 
-Using the map:
-- The figure follows the patient's sex, taken from the RČ.
-- Clicking an organ **filters the brief and the document list** to the reports that mention it, and shows the quotes with D-links.
-- Hovering a report outlines the organs it describes.
-- Results are cached in `storage/bodymap/`, and re-run automatically when new reports arrive.
-- The first run takes a few minutes; after that it is instant.
+- Docker (Docker Desktop on Windows and macOS)
+- Python 3.10 or newer
+- Node.js 18 or newer
+- An API key for an OpenAI-compatible model service (for example e-INFRA CZ)
+- About 5 GB of disk space for the IRIS image
+- Optional: the Rakathon sample data, for the full demo story and the tests
 
-### Cancer pathways (one per cancer type)
-
-Each pathway follows the current **ESMO Clinical Practice Guidelines** ([esmo.org/guidelines](https://www.esmo.org/guidelines)):
-
-| Pathway | ICD-10 | Guideline | Diagnostic work-up |
-|---|---|---|---|
-| 🫁 Lung cancer | C34 | ESMO early & locally advanced NSCLC (Zer et al., Ann Oncol 2025; staging per Postmus et al. 2017) + metastatic NSCLC (Hendriks et al., Ann Oncol 2023) | CT chest + upper abdomen, labs → **diagnostic MDT: extent of disease** → *potentially curable*: PET-CT, lung function (FEV1, DLCO), invasive mediastinal staging (EBUS/EUS, if indicated) / *metastatic* → brain MRI, tissue sampling, histology (WHO 2021 subtype), **biomarkers** (PD-L1, EGFR, ALK, NGS panel; skipped automatically for small-cell carcinoma) |
-| 🧬 Pancreatic cancer | C25 | ESMO pancreatic cancer (Conroy et al., Ann Oncol 2023) | Multiphasic CT chest–abdomen–pelvis (pancreatic protocol), labs + CA 19-9, anticoagulant pause, EUS-FNB, histology; optional: liver MRI, PET-CT, biliary drainage, germline BRCA1/2, tumour KRAS/MSI/NTRK; supportive care |
-| 🎗️ Breast cancer | C50 | ESMO early breast cancer (Loibl et al., Ann Oncol 2024) | Family history + menopausal status, bilateral mammography + breast/axillary ultrasound, core biopsy, ER/PR/HER2/Ki-67, labs; optional: breast MRI, distant staging (CT + bone scan / PET-CT), germline BRCA1/2, echocardiography, fertility counselling |
-
-Every step has a **title** (the only text on the canvas) and, when opened:
-- **what it needs** – the description. It is also the LLM's brief: when a document arrives, steps without a machine-readable test (e.g. "lung function", "biomarkers") are matched by the LLM from the step's title + description, and it must quote the passage that proves the match;
-- **why it is in the pathway** – the ESMO recommendation and its evidence level, e.g. `[III, A]`;
-- the **accepted file formats**, whether it is **required** before the MDT or **optional**, and, in a case, the parsed document that satisfies it (✓).
-
-All pathways reuse a standard ending (handover → treatment MDT → decision to treat with 5 options → feedback → K2 → closed). Steps after a decision (e.g. lung PET-CT) are shown as **"depends on decision"** until the decision is made, then become required or "not needed". They live in `seed/pathways/*.json` and are still **for clinicians to validate** before clinical use; the turnaround targets (SLA days) are local, not from ESMO.
-
-**National governance.** Every KOC uses the same pathway per cancer type. A change is made in a **draft** and the draft is put to a vote. It passes only with **YES from more than half of all KOCs** (not only of those who voted) before the deadline. New referrals use the new version. Running cases stay on the version they started with.
-
-## Design rules
-
-1. **AI prepares, people decide.** The local LLM (`qwen3.5:4b`) only turns short free-text sections into lists, drafts request letters, suggests treatments from an imported MDT conclusion, and answers GraphRAG questions. Every extracted value keeps its source quote. If the quote isn't found in the document, the value is marked "check source". A doctor confirms the handover and the MDT confirms the decision.
-2. **The comparison with the pathway is a fixed query, with the LLM only where a rule can't decide.** A pathway step has a `requires` list (e.g. `{"kind": "exam", "exam_type": "ct"}`), and each one is checked by a fixed query over the patient's graph in IRIS. That is what drives green / red / yellow. Steps marked `{"kind": "described"}` (and documents the parser could not classify) are matched by the LLM from the step's title + description, with a quote from the document as proof; a document the parser did classify is never re-judged for a different exam.
-3. **GraphRAG on InterSystems IRIS** (after [IRIS-Global-GraphRAG](https://github.com/fanji-isc/IRIS-Global-GraphRAG) and [iris-vector-rag](https://github.com/intersystems-community/iris-vector-rag)):
-   - The LLM turns the question (EN or CS) into Czech search terms.
-   - Document chunks live in the IRIS SQL table `Onk.DocChunk` with a `VECTOR` column. Retrieval fuses **BM25 over the Czech terms** (light Czech stemming) with **vector search on the question** (`qwen3-embedding:0.6b` in Ollama, multilingual, so an English question finds Czech text) by reciprocal rank fusion. With `EMBED_MODEL` empty, or Ollama unreachable, only the keyword leg runs.
-   - The graph in IRIS globals adds the core facts (diagnosis, exam conclusions, abnormal labs); identity comes from the FHIR Patient.
-   - The LLM answers through a JSON schema and cites `[D<id>]`.
-   - Citations are also matched deterministically. If nothing backs the answer, it is flagged "not backed by a document".
-   - It never concludes something is absent just because it isn't mentioned (e.g. "no MRI in the documents" rather than "no metastases on MRI").
-4. **Copy, don't guess.** Fixed-shape data is read by rules, with no LLM: header, OA/FA/AA lines, lab tables, ICD codes, dates, weight/height. Missing data is reported as missing.
-5. **Time-aware.** Every fact keeps its document date. Only documents dated on or before the MDT date are searchable and used in the MDT report.
-
-## Tech stack
-
-| Part | Choice |
-|---|---|
-| Backend | Python 3.10 (conda env `Deep_Learning`), FastAPI, SQLAlchemy |
-| Workflow data | SQLite (`backend/data/onkomost.sqlite3`); switch to Postgres by changing `SQLITE_URL` |
-| Patient record (sensitive) | **InterSystems IRIS for Health FHIR R4 server** (`infra/iris`, set up like the [FHIR-AI-Hackathon-Kit](https://github.com/intersystems-community/FHIR-AI-Hackathon-Kit/tree/V2)). `Patient` (name, RČ, birth date, sex, insurer, address, phone), `RelatedPerson` (contact persons) and `DocumentReference` (each document: extracted text + original file). Every resource is tagged `onkomost`; nothing else on the server is touched |
-| Patient graph | IRIS **globals** `^OnkGraph`, one partition per patient (the IRIS-Global-GraphRAG pattern). Pseudonymous: keyed by `patient_uuid`, no name/RČ/contacts |
-| GraphRAG chunks | IRIS SQL table `Onk.DocChunk` with `VECTOR(FLOAT, 384)`; the patient's identifiers are masked in the stored text |
-| AI | `qwen3.5:4b` (any Ollama model via `LLM_MODEL`) in the local Windows Ollama, JSON-schema output, temperature 0, answers cached in `storage/llm_cache/` |
-| Embeddings | `qwen3-embedding:0.6b` in the same Ollama (1024 dims, 100+ languages, `EMBED_MODEL` / `EMBED_DIM`); fits on the GPU next to the LLM. Changing the model rebuilds `Onk.DocChunk` and re-embeds the stored text on the next start |
-| Frontend | React 18 + Vite + TypeScript, React Flow (`@xyflow/react`) + dagre, EN/CS dictionary in `src/i18n.ts` |
-| Documents | python-docx; optional Tesseract OCR (`ces`) for scans |
-
-## Run it
-
-All commands run from this folder (`onkomost/`). On Windows use `conda run`, because non-interactive shells cannot `conda activate`. In an interactive terminal, `conda activate Deep_Learning` works too.
+### 1. Install
 
 ```bash
-# 0. one-time setup
-cp backend/.env.example backend/.env            # then fill in IRIS_PASSWORD (and IRIS_HOST if the WSL IP changed)
-wsl -e bash infra/iris/start.sh                 # IRIS for Health in Docker (WSL): namespace + FHIR R4 endpoint; ~4–5 GB disk
-ollama pull qwen3.5:4b                          # the LLM, local Ollama (not WSL)
-ollama pull qwen3-embedding:0.6b                # GraphRAG embeddings, 639 MB
-cd frontend && npm install && npm run build && cd ..   # npm install also copies the anatomogram SVGs to public/
+git clone https://github.com/VINKAS7/OnkoMost.git
+cd OnkoMost
 
-# 1. check IRIS, the FHIR server, Ollama (LLM + embeddings), SQLite and the sample data
-conda run -n Deep_Learning python -m backend.config --check
+python -m venv .venv
+source .venv/bin/activate          # on Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-# 2. load the sample case (pick where the story should stop)
-conda run -n Deep_Learning python -m scripts.seed_demo --until histology    # diagnostics done, conflicts open
-conda run -n Deep_Learning python -m scripts.seed_demo                      # whole story, ends closed
-# optional: two more fictional MDT patients (lung, breast) + their body maps
-conda run -n Deep_Learning python -m scripts.seed_cancer_demos --bodymap
-
-# 3. start (serves the built UI too) → http://localhost:8000
-conda run -n Deep_Learning uvicorn backend.api:app --port 8000
-
-# frontend dev server with hot reload → http://localhost:5173 (proxies /api to :8000)
-cd frontend && npm run dev
+cd frontend
+npm install                        # also copies the body map pictures into public/
+npm run build
+cd ..
 ```
 
-`seed_demo` steps: `referral, accepted, prior_reports, ct, biopsy, labs, histology, ready, mdt, feedback, closed`.
-It sets the **demo date** to the date of each event (the sample case happens in October 2026). You can change the demo date in the top bar.
-
-> Memory: the 4B LLM takes ~4.5 GB when loaded, the embedding model ~0.6 GB. On a machine with little free RAM, close other heavy programs before starting the server.
-
-### Tests
+### 2. Configure
 
 ```bash
-conda run -n Deep_Learning python -m pytest tests -q
+cp backend/.env.example backend/.env
 ```
 
-There are 40 tests. Among other things they check:
-- extraction rules
-- the RČ / identity check
-- missing reports found from the referral alone
-- a wrong-patient document gets blocked
-- the **answer key** (`MDT zaver.docx`): CA 19-9 = 312, G2–G3, C25.0, CT 35 mm, the 3 comorbidities, 7 MDT members, ECOG missing, both impossible dates flagged, post-MDT reports excluded
-- green / red / yellow document status on the pathway
-- the lung extent decision (PET-CT and lung function "depend on decision", then skipped for metastatic disease; single choice enforced) and the biomarker step skipped only for small-cell carcinoma
-- every seeded ESMO step has a title, description and "why" in both languages, and every evidence step lists its file formats
-- GraphRAG finds CA 19-9 = 312 and cannot see the post-MDT pain report
-- the feedback loop closes the case (MDT chose chemotherapy)
-- the final MDT record contains the conclusion, the recommendations and the decision, and is attached to the GP message even without an imported .docx
-- a question to the GP creates a waiting task that closes when the GP replies or uploads a document
-- a review-doctor question creates a high-priority coordinator task and appears in notifications
-- notifications list overdue tasks per centre
-- governance (3 of 6 yes → rejected, 4 of 6 → active, a running case keeps v1; a new cancer type goes through the same vote, ICD codes can't overlap, an unsubmitted draft can be discarded)
-- the body map's checks: a quote not in the report is dropped, the report's wording decides the organ, status and side ("HER2 negativní" does not make a carcinoma negative; "bez ložisek, bez metastáz" stays negative), the most severe status wins, conflicts are flagged only on the same side, the pathway organ is the fallback, sex from the RČ
-- identity is only in FHIR: the case table has no name/RČ columns, and the graph globals and GraphRAG chunks contain no RČ or name
-- **non-Onkomost FHIR data is unchanged**
+Open `backend/.env` and set at least:
 
-The tests use their own SQLite file, but they rebuild Onkomost's data in IRIS (`^OnkGraph`, `Onk.DocChunk`, the tagged FHIR resources). Re-run `seed_demo` afterwards.
+- `LLM_API_KEY`: your API key.
+- `IRIS_PASSWORD`: any password you like. The start script in the next step sets it on the IRIS server.
+- `SAMPLE_DATA_DIR`: the folder with the Rakathon sample data, if you have it.
 
-## Demo script (≈ 6 minutes)
+### 3. Start IRIS
 
-`seed_demo --until histology` leaves the sample patient with diagnostics complete and two open conflicts.
+```bash
+bash infra/iris/start.sh
+```
 
-1. **Start page** – the three workspaces. Switch EN ↔ CS anywhere.
-2. **🩺 Referring doctor** – show the short form (name, RČ, cancer type, documents). *My referrals* lists Alena with her status and ✓/✕/! document counts. (Live: `seed_demo --until referral`, then upload `07_PL_zadost_KOC2_2026-10-02.docx` here, with demo date 2026-10-02.)
-3. **🏥 KOC → Patients → Alena → Pathway**:
-   - The pancreatic pathway, colour-coded:
-     - CT, biopsy, histology, CA 19-9 → **green**
-     - the biopsy and histology reports → **yellow**: their dates conflict (last dose 18 Oct after a 12 Oct biopsy; sample taken 20 Oct but reported 19 Oct)
-     - pain specialist and psycho-oncology → **red**, optional
-   - The *Document checklist* explains each item.
-   - Mark the conflicts as reviewed. On a *missing data* task click **Ask GP**: a pre-filled question goes to the referring doctor; in the GP workspace answer it (or upload a document) and the waiting task closes.
-   - Validate the **Handover** (sources marked AI were read by the LLM), and generate the MDT briefing under **MDT & result**.
-4. **🗺️ Cancer pathways → Lung** – the ESMO work-up with the *potentially curable* / *metastatic* decision; open any step to see what it needs, why (ESMO recommendation + evidence level), its file formats and whether it is optional.
-5. **⚕️ MDT → Alena**:
-   - The **body map**:
-     - the female figure, with the pancreas as the primary tumour, the mesenteric vessels involved, and a suspicious peripancreatic lymph node
-     - liver, lungs, kidneys, gallbladder and bones examined negative
-     - click *Pancreas*: the brief and documents narrow to the 4 reports that describe it
-   - The case brief and warnings.
-   - **Ask the case**, e.g. "What is the CA 19-9?" (answer with D-citations) or "Does she have brain metastases on MRI?" ("not in the documents").
-   - Open source documents from the sidebar.
-   - **Import signed conclusion** (`MDT zaver.docx`): chemotherapy is suggested. Then **Record MDT decision**.
-6. **🏥 KOC → MDT & result** – send the result: the GP gets the final MDT record (sections 6/7 filled) and the review doctor gets a structured summary. Open the review doctor's link (Outbox) and use *Request more information*: the question appears under **Notifications** and as a task; answer it with *Reply*.
-7. **🩺 Referring doctor** – the result appears under *My referrals*; **Confirm receipt**.
-8. **🏥 KOC** – *Hand over to K2*: the case is **Closed**, the chosen treatment is highlighted on the pathway, and the full audit trail is kept.
-9. **🗳️ Governance** – propose adding a step (e.g. BRCA testing) and vote YES as 4 of the 6 KOCs: v2 becomes active.
+On Windows, run this from Git Bash or WSL. The script builds and starts the IRIS for Health container (ports 1972
+and 52773), sets the password, creates the `ONKOMOST` namespace and installs the FHIR server. The first run takes a
+few minutes; running it again is safe.
+
+If Docker runs inside WSL rather than Docker Desktop, set `IRIS_HOST` in `backend/.env` to the WSL address
+(`hostname -I` inside WSL). This address can change after a restart.
+
+### 4. Check that everything is reachable
+
+```bash
+python -m backend.config --check
+```
+
+This tests IRIS, the FHIR server, the language model, the embeddings, the reranker, the workflow database and the
+sample data, and prints `[ok]` or `[FAIL]` for each.
+
+### 5. Load example patients
+
+```bash
+python -m scripts.seed_demo                      # the Rakathon sample patient, from referral to closed case
+python -m scripts.seed_demo --until histology    # or stop earlier, with the case still in progress
+python -m scripts.seed_cancer_demos --bodymap    # two more example patients (lung and breast cancer)
+```
+
+`seed_demo` replays the sample case day by day and needs the Rakathon sample data. It starts by wiping Onkomost's
+data. `seed_cancer_demos` generates its own reports, so it also works without the sample data.
+
+The app has a demo date, shown in the top bar, so that deadlines make sense for the example story (October 2026).
+The seed scripts set it, and you can change it at any time.
+
+### 6. Run
+
+```bash
+uvicorn backend.api:app --port 8000
+```
+
+Open <http://localhost:8000>. The backend also serves the built interface.
+
+For frontend work with live reload, run `npm run dev` in `frontend/` and open <http://localhost:5173>. It forwards
+API calls to port 8000.
+
+### Using a different model provider
+
+All model settings are in `backend/.env`. For a local Ollama:
+
+```
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=
+LLM_MODEL=qwen3:8b
+LLM_REASONING_EFFORT=
+EMBED_MODEL=qwen3-embedding:0.6b
+EMBED_DIM=1024
+RERANK_MODEL=
+```
+
+When the embedding model or its size changes, the search index is rebuilt and the stored text is embedded again on
+the next start.
+
+## Tests
+
+```bash
+python -m pytest tests -q
+```
+
+There are 45 tests. They need IRIS to be running and the Rakathon sample data; without the sample data they are
+skipped. They check, among other things:
+
+- the extraction rules and the birth number check
+- that a document belonging to another patient is blocked
+- the answers from the challenge's answer key (for example CA 19-9 = 312, grade G2 to G3, ICD-10 C25.0)
+- the green, red and yellow pathway status
+- that reports dated after the MDT are never used
+- that questions about the case find the right report
+- the voting rules for pathway changes
+- the body map checks
+- the MDT summary download
+- that names and birth numbers exist only in FHIR, and that other data on the FHIR server is never changed
+
+The tests use their own workflow database but rebuild Onkomost's data in IRIS, so run `seed_demo` again afterwards.
+
+## A short demo
+
+Run `python -m scripts.seed_demo --until histology` first. The sample patient then has all tests done and two
+conflicting dates waiting for review.
+
+1. **Start page.** Show the three workspaces and switch between English and Czech.
+2. **Referring doctor.** Show the short referral form and the list of the doctor's referrals with their status.
+3. **Cancer centre, patient Alena, Pathway tab.** The pancreatic cancer pathway in colour: CT, biopsy, histology
+   and tumour markers are green; the biopsy and histology reports are yellow because their dates contradict each
+   other. Mark the conflicts as reviewed, ask the family doctor a question, validate the handover.
+4. **Cancer pathways, Lung.** Open any step to see what it needs, why it is there (the ESMO recommendation and its
+   evidence level) and which file formats count.
+5. **MDT, patient Alena.** Click the pancreas on the body map to filter the reports. Ask "What is the CA 19-9?"
+   and open the cited report. Download the patient summary. Import the signed MDT conclusion (`MDT zaver.docx`) and
+   record the decision.
+6. **Cancer centre, MDT and result.** Send the result to the family doctor and the insurer's review doctor.
+7. **Referring doctor.** Confirm receipt. The case is handed over and closed.
+8. **Voting.** Propose a new pathway step and vote yes as four of the six centres; the new version becomes active.
 
 ## Project layout
 
 ```
 backend/
-  config.py              settings from backend/.env; `python -m backend.config --check`
-  api.py                 REST API (+ serves frontend/dist)
-  seed.py                KOCs + cancer pathways (standard MDT ending shared by all pathways)
-  ingest/                reader (docx/OCR, sections, header), classify, identity (RČ)
-  extract/               pipeline (rules + LLM), labs, schemas, verify (quote check), llm (Ollama client + cache)
-  rag/ask.py             GraphRAG: hybrid chunk retrieval + graph facts → LLM answer with citations
-  rag/index.py           IRIS SQL vector table Onk.DocChunk: BM25 + VECTOR_COSINE (Ollama embeddings), fused by RRF;
-                         identifier masking; `python -m backend.rag.index --reindex` re-embeds every chunk
-  graph/store.py         patient graph in IRIS globals (^OnkGraph), per-patient snapshot reads
-  fhir/                  client (FHIR R4 REST) + records (Patient / RelatedPerson / DocumentReference mapping)
-  iris.py                shared IRIS connection (DB-API SQL + native API globals)
-  pathway/               model (JSON + validation + diff), conformance (graph checks → green/red/yellow + findings),
-                         governance (votes)
-  reports/               handover (Handover_obsah, EN labels), mdt (MDT_zapis .docx + conclusion parsing + treatment
-                         suggestion), feedback (messages), bodymap (LLM organ findings for the MDT body map)
-  workflow/              db (SQLAlchemy models, demo clock, audit), service (cases, tasks, decisions, states, actions)
-frontend/src/            React app: i18n.ts (EN/CS), pages/gp (GP portal), pages/koc (patients, case tabs, pathways,
-                         editor, proposals, outbox), pages/mdt (meetings, workspace with GraphRAG + decision), AckPage
-seed/                    kocs.json (6 fictional KOCs), pathways/*.json (lung, pancreas, breast – ESMO-based)
-scripts/seed_demo.py     replays the Rakathon sample case day by day
-scripts/seed_cancer_demos.py  two more fictional MDT patients (lung, breast)
-tests/                   pytest suite
-storage/                 raw/ (immutable originals), llm_cache/, reports/ (generated .docx), bodymap/ (body map results)
+  api.py          the web API; also serves the built frontend
+  config.py       settings from backend/.env, and the --check command
+  iris.py         the shared connection to IRIS (SQL and globals)
+  fhir/           the FHIR client and the mapping of patients, contacts and documents
+  graph/          the patient graph in IRIS globals
+  rag/            search over the reports and answers to questions about a case
+  ingest/         reading .docx files (and scans with OCR), recognising the document type, birth number checks
+  extract/        rules and the language model that turn reports into facts
+  pathway/        pathways, the comparison with a patient's case, and voting
+  reports/        handover, MDT record, MDT summary download, letters, body map
+  workflow/       cases, tasks, messages, states and the audit trail
+frontend/src/     the React interface (English and Czech texts in i18n.ts)
+seed/             the six example cancer centres and the three cancer pathways
+scripts/          the demo story and the two extra example patients
+example/          two more fictional lung cancer patients (reports and CT images) to upload by hand
+infra/iris/       Docker setup and start script for IRIS for Health
+tests/            the test suite
+storage/          original uploads, the language model cache and generated documents (created on first run)
 ```
 
-## Known limits (prototype)
+## Known limits
 
-- **The pathways follow ESMO but are not clinically validated.** The full text of the 2025 early-NSCLC guideline could not be retrieved, so lung staging details follow the 2017 edition it updates. Recommendation numbers and evidence levels for pancreas, breast and metastatic NSCLC were taken from ESMO's open-access Pan-Asian adaptations, which reproduce the original recommendations. Clinicians must check them (and the national ČOS guidelines) before clinical use.
-- **No logins:** the workspace choice and the KOC switcher stand in for authentication. The GP sees "their" referrals by name. There are no real emails (Outbox) and no hospital-system integration.
-- **Only one real sample patient exists** (pancreatic). `seed_cancer_demos` adds short synthetic lung and breast cases for demonstration.
-- **The body map is coarse.** The anatomogram has one shape per organ: no lobes or lymph-node stations, and the vessel shape is the whole arterial tree. Sides are shown as text. Some organs are only drawn in one of the figures.
-- **A 4B LLM is small and Czech is not its main language.** That's why rules come first, quotes are checked, citations are grounded deterministically, and every value is confirmed by a person. GraphRAG answers take ~10–20 s on an RTX 3060 (6 GB).
-- The ICD-10 code of the confirmed diagnosis is taken from the GP's suspected diagnosis and marked "to verify at MDT".
-- The IRIS address is a WSL IP that can change after a reboot. Update `IRIS_HOST` in `backend/.env`.
-- A workflow database created by the Neo4j version still holds names and RČ; the backend refuses to start on it. Run `seed_demo --reset-only` (or delete `backend/data/onkomost.sqlite3`) and seed again.
-- Not yet in FHIR: the raw uploads in `storage/raw/`, the LLM cache, generated reports and outbox letters still contain patient names locally.
+- **This is a prototype.** The pathways follow ESMO guidelines but must be checked by clinicians (and against the
+  Czech national guidelines) before any real use.
+- **There are no logins.** Choosing a workspace and a cancer centre stands in for authentication. Messages are
+  shown in an outbox instead of being e-mailed.
+- **There is only one real sample patient** (pancreatic cancer). The other example patients are short synthetic
+  cases.
+- **The body map is coarse.** It has one shape per organ, with no lung lobes or lymph node stations.
+- **The models run on an external service.** The app needs the network and an API key, and report text is sent to
+  the service when it is read. Names and birth numbers are masked only in the search index.
+- **Some files outside FHIR still contain names:** the original uploads in `storage/raw/`, the language model
+  cache, generated documents and outbox letters.
+
+## Credits
+
+- Body map: [EBI Expression Atlas anatomogram](https://github.com/gxa/anatomogram), CC BY 4.0.
+- Clinical content: ESMO Clinical Practice Guidelines ([esmo.org/guidelines](https://www.esmo.org/guidelines)).
+- IRIS patterns: [IRIS-Global-GraphRAG](https://github.com/fanji-isc/IRIS-Global-GraphRAG),
+  [iris-vector-rag](https://github.com/intersystems-community/iris-vector-rag) and the
+  [FHIR-AI-Hackathon-Kit](https://github.com/intersystems-community/FHIR-AI-Hackathon-Kit/tree/V2).
+- Sample patient: Rakathon 2026 challenge data.

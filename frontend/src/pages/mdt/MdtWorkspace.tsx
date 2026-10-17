@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, fmtDate } from "../../api";
+import { Icon } from "../../components/Icon";
 import { JourneyTimeline } from "../../components/JourneyTimeline";
 import { LabTrends } from "../../components/LabTrends";
 import { AutoTextarea, DocCounts, Spinner, Status } from "../../components/ui";
@@ -69,6 +70,43 @@ function AskPanel({ c }: { c: CaseDetail }) {
         <button className="primary" disabled={busy || !q.trim()}>{t("mdt.ask.send")}</button>
       </form>
     </section>
+  );
+}
+
+/** Once the case is ready for the MDT: the one-sheet summary as an editable Word file, or onto the clipboard with its
+ *  tables and charts (pastes into Word, e-mail or Teams) – to discuss and decide on. */
+function SummaryActions({ c }: { c: CaseDetail }) {
+  const { t, lang, toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  const ready = c.state_index >= c.states.findIndex((s) => s.key === "ready_for_mdt");
+  if (!ready) return <span className="xs muted">{t("sum.notReady")}</span>;
+  const copy = async () => {
+    setBusy(true);
+    try {
+      const r = await api.get<{ title: string; html: string; text: string }>(`/api/cases/${c.id}/mdt/summary?lang=${lang}`);
+      try {
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/html": new Blob([r.html], { type: "text/html" }), "text/plain": new Blob([r.text], { type: "text/plain" }),
+        })]);
+      } catch {
+        await navigator.clipboard.writeText(r.text); // a browser without rich clipboard still gets the text
+      }
+      toast(t("sum.copied"));
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="row wrap" style={{ gap: 8 }}>
+      <a className="btn sm primary" href={`/api/cases/${c.id}/mdt/summary.docx?lang=${lang}`} title={t("sum.download.d")}>
+        <Icon name="download" />{t("sum.download")}
+      </a>
+      <button className="sm" disabled={busy} onClick={copy} title={t("sum.copy.d")}>
+        {busy ? <Spinner /> : <Icon name="copy" />}{t("sum.copy")}
+      </button>
+    </div>
   );
 }
 
@@ -163,7 +201,10 @@ export default function MdtWorkspace() {
             <Link to={`/koc/cases/${c.id}`}>{t("tab.pathway")}</Link>
           </div>
         </div>
-        <DocCounts counts={c.doc_counts} />
+        <div className="col" style={{ gap: 8, alignItems: "flex-end" }}>
+          <SummaryActions c={c} />
+          <DocCounts counts={c.doc_counts} />
+        </div>
       </div>
       <section className="card"><div className="card-body" style={{ paddingTop: 2 }}><JourneyTimeline c={c} /></div></section>
 

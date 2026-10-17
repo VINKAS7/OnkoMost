@@ -35,13 +35,20 @@ class Settings:
     iris_user: str = os.getenv("IRIS_USER", "_SYSTEM")
     iris_password: str = os.getenv("IRIS_PASSWORD", "SYS")
     fhir_path: str = os.getenv("FHIR_PATH", "/fhir/r4")
-    ollama_url: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    # local LLM in Ollama (MEDGEMMA_MODEL is the old name of the setting)
-    llm_model: str = os.getenv("LLM_MODEL") or os.getenv("MEDGEMMA_MODEL") or "qwen3.5:4b"
-    # Ollama embedding model for the GraphRAG vector leg; empty = keyword search only.
+    # Any OpenAI-compatible API (/chat/completions, /embeddings, /rerank): e-INFRA CZ by default, or a local
+    # Ollama at http://localhost:11434/v1 (no key, no reranker).
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://llm.ai.e-infra.cz/v1").rstrip("/")
+    llm_api_key: str = os.getenv("LLM_API_KEY", "")
+    # RAG synthesis + extraction model. LLM_REASONING_EFFORT is sent as reasoning_effort for reasoning models
+    # ("none" = answer directly: fast, and JSON is not cut off by a long chain of thought); empty = not sent.
+    llm_model: str = os.getenv("LLM_MODEL") or "deepseek-v4.1-flash"
+    llm_reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "none")
+    # First-stage dense retrieval for the GraphRAG vector leg; empty = keyword search only.
     # EMBED_DIM is the size of the VECTOR column and must match the model's output.
-    embed_model: str = os.getenv("EMBED_MODEL", "qwen3-embedding:0.6b")
-    embed_dim: int = int(os.getenv("EMBED_DIM", "1024"))
+    embed_model: str = os.getenv("EMBED_MODEL", "qwen3-embedding-4b")
+    embed_dim: int = int(os.getenv("EMBED_DIM", "2560"))
+    # Second-stage reranking of the fused candidates; empty = keep the fusion order.
+    rerank_model: str = os.getenv("RERANK_MODEL", "qwen3-reranker-4b")
     sqlite_url: str = _sqlite_url(os.getenv("SQLITE_URL", "sqlite:///backend/data/onkomost.sqlite3"))
     sample_data_dir: Path = Path(os.getenv("SAMPLE_DATA_DIR", str(ROOT / "sample")))
     raw_dir: Path = ROOT / "storage" / "raw"
@@ -74,28 +81,31 @@ def check() -> bool:
     except Exception as e:  # noqa: BLE001
         ok = False
         print(f"[FAIL] FHIR {settings.fhir_base_url}: {e}")
+    from backend.extract import llm
     try:
-        import httpx
-        tags = httpx.get(f"{settings.ollama_url}/api/tags", timeout=5).json()
-        names = [m["name"] for m in tags.get("models", [])]
-        if any(n.split(":")[0] == settings.llm_model.split(":")[0] for n in names):
-            print(f"[ok]   Ollama {settings.ollama_url} has {settings.llm_model}")
-        else:
-            ok = False
-            print(f"[FAIL] Ollama is up but {settings.llm_model} is not pulled (have: {names})")
-    except Exception as e:  # noqa: BLE001
+        reply = llm.write("Odpověz jedním slovem: funguješ?", "-", max_tokens=10)
+        print(f"[ok]   LLM {settings.llm_model} at {settings.llm_base_url} – {reply[:40]!r}")
+    except llm.LLMUnavailable as e:
         ok = False
-        print(f"[FAIL] Ollama {settings.ollama_url}: {e}")
+        print(f"[FAIL] LLM {settings.llm_model} at {settings.llm_base_url}: {e} (LLM_BASE_URL / LLM_API_KEY / LLM_MODEL)")
+    from backend.rag import index
     if settings.embed_model:
-        from backend.rag import index
         if index.embed(["test"], "passage"):
             print(f"[ok]   Embeddings {settings.embed_model} ({settings.embed_dim} dims)")
         else:
             ok = False
-            print(f"[FAIL] Embeddings {settings.embed_model}: not pulled, unreachable or not {settings.embed_dim} "
-                  f"dims (ollama pull {settings.embed_model}; see EMBED_DIM)")
+            print(f"[FAIL] Embeddings {settings.embed_model}: unreachable or not {settings.embed_dim} dims (see EMBED_DIM)")
     else:
         print("[warn] EMBED_MODEL is empty: GraphRAG uses keyword search only")
+    if settings.rerank_model:
+        scores = index.rerank("Jaká je hodnota CA 19-9?", ["CA 19-9 312 kU/l", "Sinusový rytmus, apixaban 5 mg"])
+        if scores and scores[0] > scores[1]:
+            print(f"[ok]   Reranker {settings.rerank_model} – {scores[0]:.2f} vs {scores[1]:.2f}")
+        else:
+            ok = False
+            print(f"[FAIL] Reranker {settings.rerank_model}: {'unreachable' if scores is None else f'wrong order {scores}'}")
+    else:
+        print("[warn] RERANK_MODEL is empty: GraphRAG keeps the fusion order")
     try:
         from backend.workflow.db import init_db
         init_db()

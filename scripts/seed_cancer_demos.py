@@ -19,6 +19,7 @@ import docx
 from sqlalchemy import select
 
 from backend.ingest.identity import patient_uuid
+from backend.seed import seed
 from backend.workflow import service as svc
 from backend.workflow.db import Case, Pathway, session_scope
 
@@ -205,6 +206,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bodymap", action="store_true", help="also run the LLM body map")
     args = ap.parse_args()
+    seed()  # centres and pathways, so this also works on a fresh install without the Rakathon sample data
     ids = []
     for p in PATIENTS:
         case_id = existing(p["rc"])

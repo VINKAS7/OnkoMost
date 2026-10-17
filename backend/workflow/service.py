@@ -30,6 +30,7 @@ from backend.pathway.model import ROLES, validate
 from backend.reports import feedback as fb
 from backend.reports import handover as hv
 from backend.reports import mdt as mdtr
+from backend.reports import summary as sm
 from backend.rag import ask as rag
 from backend.workflow.db import (AuditLog, Case, CaseMessage, DocRequest, Document, FlagReview, HandoverEntry, Koc, OutboxMessage,
                                  Pathway, PathwayVersion, StepEvent, Task, audit, session_scope, today)
@@ -706,6 +707,18 @@ def generate_mdt_report(case_id: int, by: str) -> dict:
         audit(s, "mdt.report_generated", by, case_id, path=case.mdt_report_path, final=report["final"],
               excluded=[d["title"] for d in report["excluded_documents"]])
         return report
+
+
+def mdt_summary(case_id: int, lang: str = "cs", how: str = "docx", by: str = "MDT") -> dict:
+    """One-sheet MDT summary of the case (documents up to the MDT date). Exporting patient data is audited."""
+    with session_scope() as s:
+        case = s.get(Case, case_id)
+        ctx = _ctx(s, case)
+        ctx.cutoff = case.mdt_date or ctx.cutoff  # the pathway as the MDT sees it – later reports do not count
+        result = evaluate(validate(case.pathway_version.graph_json), ctx)
+        summary = sm.build(case, ctx.cutoff, _entries(s, case_id), result, today(s), lang)
+        audit(s, "mdt.summary_exported", by, case_id, how=how, lang=summary["lang"])
+        return summary
 
 
 def import_mdt_conclusion(case_id: int, filename: str, data: bytes, by: str) -> dict:

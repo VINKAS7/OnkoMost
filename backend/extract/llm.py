@@ -1,4 +1,5 @@
-"""The local LLM (LLM_MODEL, e.g. qwen3.5:4b) via Ollama: structured extraction (JSON schema) and short message drafting.
+"""The LLM (LLM_MODEL, by default deepseek-v4.1-flash on e-INFRA CZ) behind an OpenAI-compatible API: structured
+extraction (JSON schema), RAG answers and short message drafting. post() is also used for embeddings and reranking.
 
 Every call is cached on disk (storage/llm_cache), keyed by model + prompt + schema, so re-runs and tests are
 fast and repeatable. The model never decides anything: its output is verified against the source text and
@@ -9,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from typing import TypeVar
 
 import httpx
@@ -18,6 +20,7 @@ from backend.config import settings
 
 log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
+RETRIES = 3  # a shared service answers 429 / 5xx under load – try again before giving up
 
 SYSTEM_EXTRACT = (
     "You are a clinical information extraction assistant for a Czech cancer centre. "
@@ -37,39 +40,60 @@ def _cache_path(payload: dict):
     return settings.llm_cache_dir / f"{key}.json"
 
 
-def _chat(messages: list[dict], fmt: dict | str | None, num_predict: int = 1024,
-          temperature: float = 0, num_ctx: int = 4096, cache: bool = True) -> str:
-    payload = {
-        "model": settings.llm_model,
-        "messages": messages,
-        "stream": False,
-        "think": False,
-        "options": {"temperature": temperature, "num_ctx": num_ctx, "num_predict": num_predict, "seed": 7},
-    }
-    if fmt is not None:
-        payload["format"] = fmt  # Ollama: JSON schema dict, or the string "json"
+def post(path: str, payload: dict, timeout: float = 300) -> dict:
+    """POST to the OpenAI-compatible API (LLM_BASE_URL + path). Retries 429 / 5xx / network errors with backoff."""
+    headers = {"Authorization": f"Bearer {settings.llm_api_key}"} if settings.llm_api_key else {}
+    for attempt in range(RETRIES):
+        try:
+            r = httpx.post(f"{settings.llm_base_url}{path}", json=payload, headers=headers, timeout=timeout)
+            if r.status_code == 429 or r.status_code >= 500:
+                raise httpx.HTTPStatusError(f"{r.status_code}: {r.text[:200]}", request=r.request, response=r)
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPStatusError as e:
+            if (e.response.status_code < 500 and e.response.status_code != 429) or attempt == RETRIES - 1:
+                raise LLMUnavailable(f"{settings.llm_base_url}{path}: {e.response.status_code} {e.response.text[:200]}") from e
+        except (httpx.HTTPError, ValueError) as e:
+            if attempt == RETRIES - 1:
+                raise LLMUnavailable(f"{settings.llm_base_url}{path}: {e}") from e
+        time.sleep(2 ** attempt)
+    raise LLMUnavailable(f"{settings.llm_base_url}{path}: no answer")
+
+
+def _chat(messages: list[dict], fmt: dict | str | None, max_tokens: int = 1024, temperature: float = 0,
+          cache: bool = True, name: str = "Answer") -> str:
+    payload = {"model": settings.llm_model, "messages": messages, "temperature": temperature,
+               "max_tokens": max_tokens, "seed": 7}
+    if settings.llm_reasoning_effort:
+        payload["reasoning_effort"] = settings.llm_reasoning_effort
+    if isinstance(fmt, dict):  # a JSON schema: the server constrains the output to it
+        payload["response_format"] = {"type": "json_schema", "json_schema": {"name": name, "schema": fmt}}
+    elif fmt == "json":
+        payload["response_format"] = {"type": "json_object"}
     path = _cache_path(payload)
     if cache and path.exists():
         return json.loads(path.read_text(encoding="utf-8"))["content"]
+    data = post("/chat/completions", payload)
     try:
-        r = httpx.post(f"{settings.ollama_url}/api/chat", json=payload, timeout=300)
-        r.raise_for_status()
-    except httpx.HTTPError as e:
-        raise LLMUnavailable(f"Ollama/{settings.llm_model}: {e}") from e
-    content = r.json()["message"]["content"]
-    if cache:
+        content = data["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError) as e:
+        raise LLMUnavailable(f"{settings.llm_model}: unexpected answer {str(data)[:200]}") from e
+    if cache and content:
         path.write_text(json.dumps({"content": content, "model": settings.llm_model}, ensure_ascii=False),
                         encoding="utf-8")
     return content
 
 
-def extract(schema: type[T], instruction: str, text: str) -> T:
-    """Structured extraction. Raises LLMUnavailable if Ollama is down; returns an empty model on bad JSON."""
+def extract(schema: type[T], instruction: str, text: str, max_tokens: int = 2048) -> T:
+    """Structured extraction. Raises LLMUnavailable if the LLM is unreachable; returns an empty model on bad JSON.
+    The schema goes into the prompt too: the server enforces its shape, the field descriptions tell the model what
+    belongs in each field."""
+    json_schema = schema.model_json_schema()
     messages = [
-        {"role": "system", "content": SYSTEM_EXTRACT},
+        {"role": "system", "content": f"{SYSTEM_EXTRACT}\nJSON schema:\n{json.dumps(json_schema, ensure_ascii=False)}"},
         {"role": "user", "content": f"{instruction}\n\n--- INPUT (Czech) ---\n{text}\n--- END INPUT ---"},
     ]
-    raw = _chat(messages, schema.model_json_schema(), num_predict=2048)
+    raw = _chat(messages, json_schema, max_tokens=max_tokens, name=schema.__name__)
     try:
         return schema.model_validate_json(raw)
     except ValidationError as e:
@@ -107,12 +131,11 @@ def _json_object(raw: str) -> str:
     return cleaned
 
 
-def complete_json(system: str, user: str, *, num_predict: int = 2200,
-                  temperature: float = 0.3, num_ctx: int = 4096) -> dict:
+def complete_json(system: str, user: str, *, max_tokens: int = 2200, temperature: float = 0.3) -> dict:
     """Raw JSON object from the model. Does not cache. Raises LLMUnavailable on empty/invalid JSON."""
     raw = _chat(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "json", num_predict=num_predict, temperature=temperature, num_ctx=num_ctx, cache=False,
+        "json", max_tokens=max_tokens, temperature=temperature, cache=False,
     )
     cleaned = _json_object(raw)
     try:
@@ -125,13 +148,13 @@ def complete_json(system: str, user: str, *, num_predict: int = 2200,
     return data
 
 
-def complete(system: str, user: str, schema: type[T], *, num_predict: int = 1800,
-             temperature: float = 0.2, num_ctx: int = 4096, use_schema: bool = False) -> T:
-    """Structured generation (pathway drafts etc.). Raises LLMUnavailable if Ollama is down or JSON is empty."""
+def complete(system: str, user: str, schema: type[T], *, max_tokens: int = 1800,
+             temperature: float = 0.2, use_schema: bool = False) -> T:
+    """Structured generation (pathway drafts etc.). Raises LLMUnavailable if the LLM is unreachable or JSON is empty."""
     fmt: dict | str | None = schema.model_json_schema() if use_schema else "json"
     raw = _chat(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        fmt, num_predict=num_predict, temperature=temperature, num_ctx=num_ctx, cache=False,
+        fmt, max_tokens=max_tokens, temperature=temperature, cache=False, name=schema.__name__,
     )
     cleaned = _json_object(raw)
     try:
@@ -157,13 +180,22 @@ def write(instruction: str, facts: str, max_tokens: int = 400) -> str:
             "Plain text, no markdown, no placeholders.")},
         {"role": "user", "content": f"{instruction}\n\nFACTS:\n{facts}"},
     ]
-    return _chat(messages, None, num_predict=max_tokens).strip()
+    return _chat(messages, None, max_tokens=max_tokens).strip()
+
+
+_available: tuple[float, bool] = (0.0, False)
 
 
 def available() -> bool:
+    """Is LLM_MODEL listed by the API? Cached for a minute – the UI asks on every page."""
+    global _available
+    if time.time() - _available[0] < 60:
+        return _available[1]
+    headers = {"Authorization": f"Bearer {settings.llm_api_key}"} if settings.llm_api_key else {}
     try:
-        tags = httpx.get(f"{settings.ollama_url}/api/tags", timeout=3).json()
-        base = settings.llm_model.split(":")[0]
-        return any(m["name"].split(":")[0] == base for m in tags.get("models", []))
-    except httpx.HTTPError:
-        return False
+        models = httpx.get(f"{settings.llm_base_url}/models", headers=headers, timeout=5).json().get("data", [])
+        ok = any(m.get("id") == settings.llm_model for m in models)
+    except (httpx.HTTPError, ValueError, AttributeError):
+        ok = False
+    _available = (time.time(), ok)
+    return ok

@@ -1,4 +1,4 @@
-"""Body map: the deterministic checks around the LLM's organ findings (no IRIS or Ollama needed)."""
+"""Body map: the deterministic checks around the LLM's organ findings (no IRIS or LLM needed)."""
 from backend.reports.bodymap import BodySite, check_site, merge, organs_named, sex_from_rc
 
 CT = ("Tumor hlavy pankreatu 35 mm s venózním postižením VMS. Peripankreatická uzlina 12 × 9 mm, suspektní. "

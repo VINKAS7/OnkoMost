@@ -3,16 +3,19 @@ IRIS-Global-GraphRAG).
 
 Retrieval is hybrid and always limited to one patient and the cut-off date:
   keyword – BM25 over the patient's chunks with light Czech stemming
-  vector  – VECTOR_COSINE against embeddings from the local Ollama (EMBED_MODEL, by default the multilingual
-            qwen3-embedding:0.6b), so an English question finds Czech text
+  vector  – first-stage dense retrieval: VECTOR_COSINE against embeddings from EMBED_MODEL (by default the
+            multilingual qwen3-embedding-4b on e-INFRA CZ), so an English question finds Czech text
   fusion  – reciprocal rank fusion (RRF) of the two lists
-When the embedding model is not configured or not reachable, only the keyword leg runs.
+  rerank  – second stage: RERANK_MODEL (qwen3-reranker-4b) scores each fused candidate against the question with
+            the instruction template it was trained on, and the best ones are kept
+When the embedding model is not configured or not reachable, only the keyword leg runs; without the reranker the
+fusion order is kept.
 Identifiers of the patient are masked in the stored text: the full record is in the FHIR server.
 
 The global ^OnkIndex("embed") records which model and dimension the stored vectors come from. When EMBED_MODEL or
 EMBED_DIM changes, ensure_table() rebuilds the table and re-embeds the stored (already masked) text.
 
-    python -m backend.rag.index --reindex     # re-embed every chunk, e.g. after Ollama was down during uploads
+    python -m backend.rag.index --reindex     # re-embed every chunk, e.g. after the embedding API was down during uploads
 """
 from __future__ import annotations
 
@@ -23,9 +26,8 @@ import sys
 from collections import Counter
 from datetime import date
 
-import httpx
-
 from backend.config import settings
+from backend.extract import llm
 from backend.iris import db
 from backend.ingest.reader import fold
 
@@ -34,11 +36,18 @@ log = logging.getLogger(__name__)
 TABLE = "Onk.DocChunk"
 META = "OnkIndex"
 RRF_K = 60
-VECTOR_TOP = 4
+VECTOR_TOP = 12   # first stage: wide, the reranker sorts it out
+CANDIDATES = 24   # fused candidates the reranker scores
 BATCH = 16
 # Qwen3-Embedding expects an instruction on the query side only
 QUERY_TASK = ("Given a question (English or Czech) about a cancer patient's record, retrieve the passages of the "
               "patient's Czech medical reports that answer it")
+# Qwen3-Reranker is a yes/no judge trained on this chat template; plain text gives near-random scores
+RERANK_PREFIX = ('<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the '
+                 'Instruct provided. Note that the answer can only be "yes" or "no".<|im_end|>\n<|im_start|>user\n')
+RERANK_SUFFIX = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+RERANK_TASK = ("Given a question (English or Czech) about a cancer patient's record, judge whether this passage of the "
+               "patient's Czech medical report answers it")
 
 # -- embeddings ------------------------------------------------------------------------------------
 
@@ -54,19 +63,18 @@ def _prepare(text: str, kind: str, model: str) -> str:
 
 
 def embed(texts: list[str], kind: str) -> list[list[float]] | None:
-    """Vectors from the Ollama embedding model, or None (keyword search only) when it is not configured, not
-    reachable, or returns vectors of another size than EMBED_DIM."""
+    """Vectors from EMBED_MODEL, or None (keyword search only) when it is not configured, not reachable, or
+    returns vectors of another size than EMBED_DIM."""
     if not settings.embed_model or not texts:
         return None
     out: list[list[float]] = []
     try:
         for i in range(0, len(texts), BATCH):
-            r = httpx.post(f"{settings.ollama_url}/api/embed", timeout=120, json={
-                "model": settings.embed_model,
-                "input": [_prepare(t, kind, settings.embed_model) for t in texts[i:i + BATCH]]})
-            r.raise_for_status()
-            out += r.json()["embeddings"]
-    except (httpx.HTTPError, KeyError, ValueError) as e:
+            data = llm.post("/embeddings", {"model": settings.embed_model,
+                                            "input": [_prepare(t, kind, settings.embed_model) for t in texts[i:i + BATCH]]},
+                            timeout=120)
+            out += [d["embedding"] for d in sorted(data["data"], key=lambda d: d["index"])]
+    except (llm.LLMUnavailable, KeyError, TypeError) as e:
         log.warning("embedding model %s unavailable, keyword search only: %s", settings.embed_model, e)
         return None
     if any(len(v) != settings.embed_dim for v in out):
@@ -74,6 +82,22 @@ def embed(texts: list[str], kind: str) -> list[list[float]] | None:
                   settings.embed_model, len(out[0]), settings.embed_dim)
         return None
     return out
+
+
+def rerank(question: str, texts: list[str]) -> list[float] | None:
+    """Relevance 0–1 of each text to the question (same order), or None when no reranker is configured/reachable."""
+    if not settings.rerank_model or not texts:
+        return None
+    try:
+        data = llm.post("/rerank", {
+            "model": settings.rerank_model,
+            "query": f"{RERANK_PREFIX}<Instruct>: {RERANK_TASK}\n<Query>: {question}\n",
+            "documents": [f"<Document>: {t}{RERANK_SUFFIX}" for t in texts]}, timeout=60)
+        scores = {r["index"]: float(r["relevance_score"]) for r in data["results"]}
+        return [scores.get(i, 0.0) for i in range(len(texts))]
+    except (llm.LLMUnavailable, KeyError, TypeError, ValueError) as e:
+        log.warning("reranker %s unavailable, keeping the fusion order: %s", settings.rerank_model, e)
+        return None
 
 
 def _vec(v: list[float]) -> str:
@@ -126,7 +150,7 @@ def ensure_table() -> None:
 
 def reindex() -> int:
     """Recreate the table for the current embedding model and re-embed the stored text. Returns the row count.
-    The signature is only recorded when every row got a vector, so a rebuild without Ollama is retried later."""
+    The signature is only recorded when every row got a vector, so a rebuild while the embedding API is down is retried later."""
     rows = [list(r) for r in db.sql(f"SELECT {COLS_ALL} FROM {TABLE}")] if exists() else []
     if exists():
         db.sql(f"DROP TABLE {TABLE}")
@@ -268,7 +292,7 @@ def search(patient_uuid: str, terms: list[str], cutoff: date, limit: int = 6, qu
         return []
     ranked: dict[str, float] = {}
     by_id = {r["id"]: r for r in rows}
-    for rank, (_, r) in enumerate(_bm25(terms, rows)[:limit * 3]):
+    for rank, (_, r) in enumerate(_bm25(terms, rows)[:CANDIDATES]):
         ranked[r["id"]] = ranked.get(r["id"], 0) + 1 / (RRF_K + rank + 1)
     qv = embed([question], "query") if question else None
     if qv:
@@ -279,8 +303,11 @@ def search(patient_uuid: str, terms: list[str], cutoff: date, limit: int = 6, qu
         for rank, (cid, _) in enumerate(hits):
             if cid in by_id:
                 ranked[cid] = ranked.get(cid, 0) + 1 / (RRF_K + rank + 1)
-    best = sorted(ranked.items(), key=lambda x: -x[1])[:limit]
-    return [{**by_id[cid], "score": round(score, 5)} for cid, score in best]
+    fused = sorted(ranked.items(), key=lambda x: -x[1])[:CANDIDATES]
+    scores = rerank(question, [by_id[cid]["text"] for cid, _ in fused]) if question and fused else None
+    if scores:  # second stage: the reranker's judgement replaces the fusion order
+        fused = sorted(((cid, s) for (cid, _), s in zip(fused, scores)), key=lambda x: -x[1])
+    return [{**by_id[cid], "score": round(score, 5)} for cid, score in fused[:limit]]
 
 
 if __name__ == "__main__":

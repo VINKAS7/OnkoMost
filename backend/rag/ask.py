@@ -116,7 +116,7 @@ def core_facts(patient_uuid: str, cutoff: date) -> list[tuple[int | None, str]]:
             out.append((r["doc_id"], f"Alergie / allergies: {r['text']}"))
         elif k == "lab":
             labs.append((r["doc_id"], f"{when} {r['analyte']} {r['value']} {r['unit'] or ''} {r['flag'] or ''}".strip()))
-    return out + labs[-14:]  # keep it compact for a 4B model
+    return out + labs[-30:]  # the abnormal values and tumour markers, newest last
 
 
 NEGATIVE = re.compile(r"^(no|ne|není uvedeno|neuvedeno|not (found|stated|mentioned)|unknown|nevím|false|true|none|"
@@ -126,7 +126,7 @@ GENERIC = {"patient", "pacient", "pacientka", "document", "documents", "value", 
 
 def ask(patient_uuid: str, question: str, cutoff: date, lang: str = "en") -> dict:
     terms = keywords(question)
-    hits = retrieve(patient_uuid, terms, cutoff, question=question)
+    hits = retrieve(patient_uuid, terms, cutoff, limit=8, question=question)
     facts = core_facts(patient_uuid, cutoff)
     context = ("CASE FACTS (from the patient graph):\n" + "\n".join(f"[D{d}] {line}" for d, line in facts)
                + "\n\nDOCUMENT EXCERPTS:\n" + "\n\n".join(
@@ -139,7 +139,7 @@ def ask(patient_uuid: str, question: str, cutoff: date, lang: str = "en") -> dic
             f"(case facts first, then document excerpts). Answer every part of the question. Put the source after "
             f"each fact as [D<number>]. If something is not in the context, say it is not in the documents - never "
             f"conclude that a finding is absent just because it is not mentioned. No treatment advice. "
-            f"QUESTION: {question}"), context[:7000])
+            f"QUESTION: {question}"), context[:24000])
         answer = re.sub(r"<unused\d+>\w*", "", r.answer).strip()
         if not answer:
             raise llm.LLMUnavailable("empty answer")
@@ -171,8 +171,8 @@ def ask(patient_uuid: str, question: str, cutoff: date, lang: str = "en") -> dic
     negative = bool(NEGATIVE.match(body))
     translation = None
     if lang == "en" and not negative and len(re.findall(r"[ěščřžůúáéíóýĚŠČŘŽŮÚÁÉÍÓÝ]", body)) >= 3:
-        # The 4B model often copies the Czech source. Keep that verbatim answer (it is what the document says) and add
-        # a clearly labelled machine translation – a 4B translation can be wrong (e.g. "duktální" ≠ "duodenal").
+        # The model may copy the Czech source. Keep that verbatim answer (it is what the document says) and add
+        # a clearly labelled machine translation – a machine translation can be wrong (e.g. "duktální" ≠ "duodenal").
         try:
             t = llm.write("Translate this medical text from Czech to English literally. Keep numbers, units, "
                                "drug names and abbreviations unchanged. Output only the translation.", body, max_tokens=300)

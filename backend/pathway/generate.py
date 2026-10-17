@@ -149,7 +149,7 @@ SYSTEM = (
 def generate(prompt: str, current: dict | None = None) -> dict:
     """Ask the local model for the pathway the user described, then repair into a valid graph."""
     user = _user_prompt(prompt, current)
-    data = llm.complete_json(SYSTEM, user, num_predict=2200, temperature=0.3, num_ctx=4096)
+    data = llm.complete_json(SYSTEM, user, max_tokens=2200, temperature=0.3)
     draft = _draft_from_llm(data)
     if not draft.get("nodes"):
         raise llm.LLMUnavailable("the model returned no steps – describe the diagnosis and the exams in more detail")
