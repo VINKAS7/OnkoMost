@@ -1,11 +1,11 @@
-"""Add three fictional MDT-ready patients – lung, colorectal and breast cancer – next to the sample case, so the MDT
+"""Add two fictional MDT-ready patients – lung and breast cancer – next to the sample case, so the MDT
 panel (and its body map) can be shown for every cancer type.
 
     python -m scripts.seed_cancer_demos            # add the patients that are not there yet
-    python -m scripts.seed_cancer_demos --bodymap  # … and run the MedGemma body map for them
+    python -m scripts.seed_cancer_demos --bodymap  # … and run the LLM body map for them
 
 Each patient gets short synthetic Czech reports (.docx, same layout as the Rakathon sample), is referred through the
-normal workflow (identity check, MedGemma extraction, pathway conformance), accepted, walked through the manual
+normal workflow (identity check, LLM extraction, pathway conformance), accepted, walked through the manual
 diagnostic steps and given an MDT date. `python -m scripts.seed_demo` still resets everything.
 """
 from __future__ import annotations
@@ -18,6 +18,7 @@ from datetime import date
 import docx
 from sqlalchemy import select
 
+from backend.ingest.identity import patient_uuid
 from backend.workflow import service as svc
 from backend.workflow.db import Case, Pathway, session_scope
 
@@ -111,41 +112,30 @@ PATIENTS = [
             ("06_MR_mozku.docx", report(KOC_RAD, "Výsledek vyšetření – MR mozku s k. l.", p["name"], p["rc"],
                                         "Datum vyšetření: 12. 10. 2026", {
                 "ZÁVĚR": ["Mozek bez ložiskových změn, bez metastáz."]}, ("MUDr. Petra Malá", "radiolog"))),
-        ],
-    },
-    {
-        "code": "colorectal", "name": "Petr Novotný", "rc": "580912/0457", "who": "Pacient", "referral": "30. 9. 2026",
-        "docs": lambda p: [
-            referral(p, "C18.7", ["Změna defekace, krev ve stolici, anémie, úbytek 7 kg za 2 měsíce."],
-                     "Koloskopie 2. 10. 2026 (KOC Nemocnice Lipová) – stenozující tumor sigmatu."),
-            ("02_Koloskopie.docx", report(KOC_ENDO, "Protokol o výkonu – koloskopie", p["name"], p["rc"],
-                                          "Datum výkonu: 2. 10. 2026", {
-                "POPIS": ["Ve 30 cm od anu cirkulární stenozující tumor sigmatu, endoskopem neprostupný. "
-                          "Odebrány biopsie. Rektum bez patologie."],
-                "ZÁVĚR": ["Stenozující tumor sigmatu, suspektní z malignity."]}, ("MUDr. Jana Horká", "gastroenterolog"))),
-            ("03_Laborator.docx", report(KOC_LAB, "Výsledky laboratorního vyšetření", p["name"], p["rc"],
-                                         "Odběr: 5. 10. 2026 7:30", {
-                "KREVNÍ OBRAZ": [[LAB_HEAD, ["Hemoglobin", "98 L", "g/l", "135–175"],
-                                  ["Leukocyty", "7,8", "10⁹/l", "4,0–10,0"]]],
-                "NÁDOROVÉ MARKERY": [[LAB_HEAD, ["CEA", "18,4 H", "µg/l", "< 5,0"],
-                                      ["CA 19-9", "41 H", "kU/l", "< 37"]]]},
+            ("07_Laborator.docx", report(KOC_LAB, "Výsledky laboratorního vyšetření", p["name"], p["rc"],
+                                         "Odběr: 2. 10. 2026 7:30", {
+                "KREVNÍ OBRAZ": [[LAB_HEAD, ["Hemoglobin", "138", "g/l", "135–175"],
+                                  ["Leukocyty", "8,9", "10⁹/l", "4,0–10,0"], ["Trombocyty", "312", "10⁹/l", "150–400"]]],
+                "BIOCHEMIE": [[LAB_HEAD, ["Kreatinin", "88", "µmol/l", "64–104"], ["ALT", "0,41", "µkat/l", "0,10–0,78"],
+                               ["Vápník", "2,41", "mmol/l", "2,15–2,55"]]]},
                 ("Ing. Martina Šebestová", "odborný pracovník laboratoře"))),
-            ("04_CT_hrudnik_bricho_panev.docx", report(KOC_RAD, "Výsledek vyšetření – CT hrudníku, břicha a pánve s k. l.",
-                                                       p["name"], p["rc"], "Datum vyšetření: 6. 10. 2026", {
-                "POPIS": ["Cirkulární zesílení stěny sigmatu v délce 6 cm. Regionální mezenterické uzliny do 11 mm, "
-                          "suspektní. V játrech dvě hypodenzní ložiska v segmentu VI (22 mm) a VIII (15 mm), "
-                          "charakteru metastáz. Plíce bez ložiskových změn. Bez ascitu."],
-                "ZÁVĚR": ["Tumor sigmatu s metastázami v játrech (2 ložiska). Suspektní regionální uzliny."]},
-                ("MUDr. Petra Malá", "radiolog"))),
-            ("05_Histologie.docx", report(KOC_PAT, "Bioptický nález", p["name"], p["rc"], "Datum vydání: 8. 10. 2026", {
-                "ZÁVĚR": ["Adenokarcinom tlustého střeva (sigmatu), středně diferencovaný (G2). "
-                          "KRAS mutace G12D, MSS. MKN-O 8140/3."]}, ("MUDr. Radek Pokorný, Ph.D.", "patolog"))),
+            ("08_Funkcni_vysetreni_plic.docx", report(
+                ["KOC Nemocnice Lipová (fiktivní)", "Pneumologická ambulance", "Nemocniční 15, 140 00 Praha 4"],
+                "Ambulantní zpráva – funkční vyšetření plic", p["name"], p["rc"], "Datum vyšetření: 7. 10. 2026", {
+                    "POPIS": ["Spirometrie: FEV1 2,41 l (78 % n. h.), FVC 3,52 l (86 % n. h.), FEV1/FVC 0,68. "
+                              "Difuzní kapacita DLCO 74 % n. h. Spiroergometrie: VO2max 19,2 ml/kg/min."],
+                    "ZÁVĚR": ["Lehká obstrukční ventilační porucha, mírně snížená DLCO. Předpokládané pooperační FEV1 "
+                              "a DLCO nad 60 %, VO2max > 15 ml/kg/min – schopen lobektomie."]},
+                ("MUDr. Ondřej Kraus", "pneumolog"))),
         ],
     },
     {
         "code": "breast", "name": "Eva Malá", "rc": "715608/1236", "who": "Pacientka", "referral": "1. 10. 2026",
         "docs": lambda p: [
-            referral(p, "C50.4", ["Hmatná rezistence v levém prsu, zjištěno při samovyšetření."],
+            referral(p, "C50.4", ["Hmatná rezistence v levém prsu, zjištěno při samovyšetření.",
+                                  "Osobní anamnéza: hypertenze, jinak zdráva. Rodinná anamnéza: matka karcinom prsu "
+                                  "v 52 letech, jiné nádory v rodině neguje.",
+                                  "Gynekologická anamnéza: postmenopauzální, poslední menstruace 2021."],
                      "Mamografie a UZ prsů 24. 9. 2026 (KOC Nemocnice Lipová) – BI-RADS 5 vlevo."),
             ("02_Mamografie.docx", report(KOC_RAD, "Výsledek vyšetření – mamografie a UZ prsů a axil", p["name"], p["rc"],
                                           "Datum vyšetření: 24. 9. 2026", {
@@ -162,6 +152,13 @@ PATIENTS = [
                                           "Datum vyšetření: 9. 10. 2026", {
                 "ZÁVĚR": ["Plíce bez ložiskových změn. Játra bez ložiskových změn. Skelet bez ložisek. "
                           "Bez známek vzdálených metastáz."]}, ("MUDr. Petra Malá", "radiolog"), "Pacientka")),
+            ("05_Laborator.docx", report(KOC_LAB, "Výsledky laboratorního vyšetření", p["name"], p["rc"],
+                                         "Odběr: 2. 10. 2026 7:30", {
+                "KREVNÍ OBRAZ": [[LAB_HEAD, ["Hemoglobin", "131", "g/l", "120–160"],
+                                  ["Leukocyty", "6,4", "10⁹/l", "4,0–10,0"], ["Trombocyty", "265", "10⁹/l", "150–400"]]],
+                "BIOCHEMIE": [[LAB_HEAD, ["Kreatinin", "71", "µmol/l", "44–80"], ["ALT", "0,32", "µkat/l", "0,10–0,55"],
+                               ["ALP", "1,12", "µkat/l", "0,58–1,75"], ["Vápník", "2,36", "mmol/l", "2,15–2,55"]]]},
+                ("Ing. Martina Šebestová", "odborný pracovník laboratoře"), "Pacientka")),
         ],
     },
 ]
@@ -174,7 +171,7 @@ def pathway_id(code: str) -> int:
 
 def existing(rc: str) -> int | None:
     with session_scope() as s:
-        c = s.scalars(select(Case).where(Case.rc == rc)).first()
+        c = s.scalars(select(Case).where(Case.patient_uuid == patient_uuid(rc))).first()
         return c.id if c else None
 
 
@@ -206,7 +203,7 @@ def walk(case_id: int) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bodymap", action="store_true", help="also run the MedGemma body map")
+    ap.add_argument("--bodymap", action="store_true", help="also run the LLM body map")
     args = ap.parse_args()
     ids = []
     for p in PATIENTS:

@@ -3,7 +3,7 @@
 * build_report(): the "Zápis k jednání MDT" (structure of MDT_zapis.docx) from the patient graph, using only
   documents dated on/before the MDT date (later reports, e.g. pain/psychology after the MDT, are excluded).
 * parse_conclusion(): read an uploaded MDT conclusion (like MDT zaver.docx) into structured parts and suggest the
-  pathway branch (rules first, MedGemma only as fallback; a human confirms the branch).
+  pathway branch (rules first, the LLM only as fallback; a human confirms the branch).
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from pathlib import Path
 import docx
 from docx.shared import Pt
 
-from backend.extract import medgemma
+from backend.extract import llm
 from backend.extract.schemas import TreatmentChoice
 from backend.graph.store import graph
 from backend.ingest.reader import DocText, fold
@@ -207,12 +207,12 @@ def suggest_treatments(conclusion: str, recommendations: list[str], allowed: set
         return keys, "rule"
     if conclusion:
         try:
-            r = medgemma.extract(TreatmentChoice, "Which treatments did the MDT recommend now? Allowed keys: "
+            r = llm.extract(TreatmentChoice, "Which treatments did the MDT recommend now? Allowed keys: "
                                  + ", ".join(sorted(allowed)), conclusion)
             keys = [k for k in r.treatments if k in allowed]
             if keys:
-                return keys, "medgemma"
-        except medgemma.LLMUnavailable:
+                return keys, "llm"
+        except llm.LLMUnavailable:
             pass
     return [], None
 

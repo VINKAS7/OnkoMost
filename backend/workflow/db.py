@@ -1,6 +1,7 @@
 """SQLite (SQLAlchemy) for workflow data: KOCs, pathways, votes, cases, tasks, outbox, audit log.
 
-Swapping to Postgres later means changing SQLITE_URL only.
+Swapping to Postgres later means changing SQLITE_URL only. Cases refer to the patient by the pseudonymous
+patient_uuid; name, RČ and birth date are read from the FHIR Patient resource (backend/fhir/records.py).
 """
 from __future__ import annotations
 
@@ -9,10 +10,11 @@ from datetime import date, datetime
 from typing import Iterator
 
 from sqlalchemy import (JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint,
-                        create_engine, event)
+                        create_engine, event, inspect)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from backend.config import settings
+from backend.fhir import records
 
 engine = create_engine(settings.sqlite_url, connect_args={"check_same_thread": False})
 
@@ -82,7 +84,7 @@ class ChangeProposal(Base):
     __tablename__ = "change_proposals"
     id: Mapped[int] = mapped_column(primary_key=True)
     pathway_id: Mapped[int] = mapped_column(ForeignKey("pathways.id"))
-    base_version_id: Mapped[int] = mapped_column(ForeignKey("pathway_versions.id"))
+    base_version_id: Mapped[int | None] = mapped_column(ForeignKey("pathway_versions.id"), nullable=True)  # None = new cancer type
     draft_version_id: Mapped[int] = mapped_column(ForeignKey("pathway_versions.id"))
     title: Mapped[str] = mapped_column(String)
     rationale: Mapped[str] = mapped_column(Text, default="")
@@ -112,9 +114,6 @@ class Case(Base):
     patient_uuid: Mapped[str] = mapped_column(String, index=True)
     koc_id: Mapped[int] = mapped_column(ForeignKey("kocs.id"))
     pathway_version_id: Mapped[int] = mapped_column(ForeignKey("pathway_versions.id"))
-    patient_name: Mapped[str] = mapped_column(String, default="")
-    rc: Mapped[str] = mapped_column(String, default="")
-    dob: Mapped[date | None] = mapped_column(Date, nullable=True)
     referring_doctor: Mapped[dict] = mapped_column(JSON, default=dict)
     suspected_diagnosis: Mapped[str] = mapped_column(String, default="")
     created_on: Mapped[date] = mapped_column(Date)
@@ -128,6 +127,23 @@ class Case(Base):
     closed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     koc: Mapped[Koc] = relationship()
     pathway_version: Mapped[PathwayVersion] = relationship()
+
+    # identity lives in the FHIR server, not in this database
+    @property
+    def identity(self) -> dict:
+        return records.identity(self.patient_uuid)
+
+    @property
+    def patient_name(self) -> str:
+        return self.identity.get("patient_name", "")
+
+    @property
+    def rc(self) -> str:
+        return self.identity.get("rc", "")
+
+    @property
+    def dob(self) -> date | None:
+        return self.identity.get("dob")
 
 
 class Document(Base):
@@ -268,7 +284,33 @@ class AuditLog(Base):
 
 
 def init_db() -> None:
+    insp = inspect(engine)
+    if insp.has_table("cases") and "patient_name" in {c["name"] for c in insp.get_columns("cases")}:
+        raise RuntimeError(f"{settings.sqlite_url} was created by the Neo4j version and still holds patient identity. "
+                           "Rebuild it: python -m scripts.seed_demo --reset-only (or delete the file), then seed again.")
     Base.metadata.create_all(engine)
+    _nullable_proposal_base(insp)
+
+
+def _nullable_proposal_base(insp) -> None:
+    """Older databases declared change_proposals.base_version_id NOT NULL; a proposal for a new cancer type has no base.
+    SQLite can't relax a column, so the table is copied into a new one (votes keep pointing at the same name)."""
+    if not insp.has_table("change_proposals"):
+        return
+    col = next(c for c in insp.get_columns("change_proposals") if c["name"] == "base_version_id")
+    if col["nullable"]:
+        return
+    from sqlalchemy import MetaData
+    md = MetaData()  # a scratch copy, so the foreign keys resolve without adding a table to Base.metadata
+    for t in Base.metadata.tables.values():
+        t.to_metadata(md)
+    new = ChangeProposal.__table__.to_metadata(md, name="change_proposals_new")
+    cols = ", ".join(f'"{c.name}"' for c in ChangeProposal.__table__.columns)
+    with engine.begin() as con:
+        new.create(con)
+        con.exec_driver_sql(f"INSERT INTO change_proposals_new ({cols}) SELECT {cols} FROM change_proposals")
+        con.exec_driver_sql("DROP TABLE change_proposals")
+        con.exec_driver_sql("ALTER TABLE change_proposals_new RENAME TO change_proposals")
 
 
 @contextmanager

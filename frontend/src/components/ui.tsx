@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { fmtDate } from "../api";
 import { useApp } from "../ctx";
 import type { Source, Task } from "../types";
@@ -14,8 +14,8 @@ export function Tag({ color = "gray", children, title }: { color?: string; child
 }
 
 /** A coloured dot + short text – the main way status is shown. */
-export function Status({ color, children, title }: { color: string; children: ReactNode; title?: string }) {
-  return <span className="st" title={title}><span className={`dot ${color}`} />{children}</span>;
+export function Status({ color, children, title, pill }: { color: string; children: ReactNode; title?: string; pill?: boolean }) {
+  return <span className={`st ${pill ? "pill-st" : ""}`} title={title}><span className={`dot ${color}`} />{children}</span>;
 }
 
 export function StateTag({ state }: { state: string }) {
@@ -46,12 +46,12 @@ export function SourceChips({ sources }: { sources: Source[] }) {
   return (
     <span>
       {sources.map((s, i) => {
-        const how = s.method === "medgemma" ? (lang === "en" ? "read by MedGemma" : "vytěženo MedGemma") : (lang === "en" ? "read by rule" : "vytěženo pravidlem");
+        const how = s.method === "llm" ? (lang === "en" ? "read by the LLM" : "vytěženo LLM") : (lang === "en" ? "read by rule" : "vytěženo pravidlem");
         const ok = s.match ? `${lang === "en" ? "quote" : "citace"} ${s.match}` : (lang === "en" ? "quote not found in source" : "citace ve zdroji nenalezena");
         const tip = `${s.title ?? ""} (${fmtDate(s.date)})\n„${s.quote}“\n${how} · ${ok}`;
-        const cls = !s.match ? "bad" : s.method === "medgemma" ? "ai" : "";
+        const cls = !s.match ? "bad" : s.method === "llm" ? "ai" : "";
         const short = (s.title ?? "").replace(/^(Výsledek vyšetření|Výsledky laboratorního vyšetření|Ambulantní zpráva)\s*[–-]?\s*/, "").slice(0, 30) || (s.title ?? "").slice(0, 30);
-        const body = <>{short || "zdroj"}{s.date ? ` · ${fmtDate(s.date)}` : ""}{s.method === "medgemma" ? " · AI" : ""}</>;
+        const body = <>{short || "zdroj"}{s.date ? ` · ${fmtDate(s.date)}` : ""}{s.method === "llm" ? " · AI" : ""}</>;
         return s.doc_id ? <a key={i} className={`chip ${cls}`} title={tip} href={`/api/documents/${s.doc_id}/raw`}>{body}</a>
           : <span key={i} className={`chip ${cls}`} title={tip}>{body}</span>;
       })}
@@ -98,6 +98,23 @@ export function ThemeSwitch() {
       <button className={theme === "dark" ? "on" : ""} onClick={() => setTheme("dark")}>{label("dark")}</button>
     </div>
   );
+}
+
+/** A textarea that grows with its text instead of scrolling. */
+export function AutoTextarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const fit = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  };
+  useLayoutEffect(fit, [props.value]);
+  useEffect(() => {
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
+  return <textarea ref={ref} rows={1} className={`auto ${className}`} {...props} />;
 }
 
 export function Spinner() {

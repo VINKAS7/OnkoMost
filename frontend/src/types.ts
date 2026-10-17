@@ -2,7 +2,7 @@
 
 export type Koc = { id: number; code: string; name: string; city: string; coordinator_name: string; active: boolean };
 
-export type Health = { neo4j: string; medgemma: boolean; model: string; today: string; queue: number };
+export type Health = { iris: string; fhir: string; llm: boolean; model: string; today: string; queue: number };
 
 export type Task = {
   id: number; key: string; kind: "to_schedule" | "action" | "decision" | "missing_document" | "mismatch" | "missing_field" | "question";
@@ -31,7 +31,9 @@ export type PathwayNode = {
   id: string; type: string; label: string; label_en?: string; phase?: string; owner_role?: string; sla_days?: number;
   completion?: string; requires?: Requirement[]; skip_if?: Requirement[];
   branches?: { key: string; label: string; label_en?: string }[]; multi?: boolean;
-  branch?: string | null; blocking?: boolean; action?: string; description?: string;
+  branch?: string | null; blocking?: boolean; action?: string; description?: string; description_en?: string;
+  why?: string; why_en?: string;  // the guideline reason for the step (shown when it is opened)
+  accepted_formats?: string[];
   // filled in for a case:
   status?: "done" | "available" | "blocked" | "skipped"; done_on?: string | null; due_on?: string | null;
   available_on?: string | null; owner_name?: string;
@@ -54,7 +56,7 @@ export type DocumentRow = {
   id: number; filename: string; source: string; status: string; error: string; doc_type: string; title: string;
   doc_date: string | null; facility: string; author: string;
   identity: { ok?: boolean; issues?: string[]; matched_on?: string[] };
-  summary: { facts?: Record<string, number>; unverified?: number; medgemma_items?: number; llm_calls?: number;
+  summary: { facts?: Record<string, number>; unverified?: number; llm_items?: number; llm_calls?: number;
              llm_errors?: string[]; flags?: number };
   uploaded_on: string; post_mdt: boolean;
 };
@@ -88,7 +90,7 @@ export type CaseDetail = CaseSummary & {
 };
 
 export type Source = { doc_id: number | null; title: string; date: string | null; facility?: string; quote: string;
-                       match: "exact" | "approx" | null; method: "rule" | "medgemma" | "coordinator" | null };
+                       match: "exact" | "approx" | null; method: "rule" | "llm" | "coordinator" | null };
 export type HandoverItem = { text: string; sources: Source[]; verified: boolean; added_by?: string; edited_by?: string;
                              rows?: { analyte: string; value: string; unit: string; ref: string; flag: string | null;
                                       is_tumor_marker: boolean; panel: string }[]; result?: string };
@@ -123,11 +125,12 @@ export type PathwayInfo = {
   versions: { id: number; version: number; status: string; created_by_koc_id: number | null; created_at: string;
               activated_at: string | null }[];
 };
-export type PathwayVersion = { id: number; pathway_id: number; pathway: string; pathway_en: string; version: number; status: string;
+export type PathwayVersion = { id: number; pathway_id: number; pathway: string; pathway_en: string; icd_codes: string[];
+                               guideline_source: string; version: number; status: string;
                                graph: PathwayGraph; based_on_version_id: number | null; created_by_koc_id: number | null };
 
 export type Proposal = {
-  id: number; pathway_id: number; pathway: string; title: string; rationale: string; author: string; author_koc_id: number;
+  id: number; pathway_id: number; pathway: string; pathway_en?: string | null; new_pathway?: boolean; icd_codes?: string[]; title: string; rationale: string; author: string; author_koc_id: number;
   deadline: string; status: string; created_at: string; closed_at: string | null; base_version: number;
   draft_version: number; draft_version_id: number; base_graph: PathwayGraph; draft_graph: PathwayGraph;
   diff: { added_nodes: string[]; removed_nodes: string[]; changed_nodes: { id: string; fields: string[];

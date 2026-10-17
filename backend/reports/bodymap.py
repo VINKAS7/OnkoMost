@@ -2,7 +2,7 @@
 
 1. Read     – every report dated on/before the MDT date (the same cut-off as the brief and GraphRAG); labs,
               pain and psychology reports are skipped, they never place a tumour.
-2. Extract  – MedGemma lists organs per report section, from a fixed organ list (so every answer maps to an
+2. Extract  – the LLM lists organs per report section, from a fixed organ list (so every answer maps to an
               anatomogram UBERON id), with a status and a verbatim Czech quote.
 3. Verify   – a site is kept only if its quote occurs in the report (`verify.quote_match`). A "negative" site must
               read as negative ("bez", "negativní", …) and a positive site that reads as negative is turned around.
@@ -11,7 +11,7 @@
 5. Fallback – the organ of the case's pathway (lung, pancreas, colon, breast) is always shown as the primary site,
               marked "from the referral diagnosis" when no report states it.
 
-MedGemma calls are cached on disk (storage/llm_cache), so re-running is instant and only new reports cost time.
+LLM calls are cached on disk (storage/llm_cache), so re-running is instant and only new reports cost time.
 The result is stored in storage/bodymap/<case_id>.json together with the documents it was computed from.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from backend.config import ROOT, settings
-from backend.extract import medgemma
+from backend.extract import llm
 from backend.extract.verify import quote_match
 from backend.ingest.reader import fold, read_document
 
@@ -156,7 +156,7 @@ _lock = threading.Lock()
 
 
 def _sections(doc) -> list[str]:
-    """Report text without the identity header, cut into pieces MedGemma's context can hold."""
+    """Report text without the identity header, cut into pieces the LLM's context can hold."""
     parts = [t for head, t in doc.sections.items() if head not in ("_header", "_footer") and t.strip()]
     text = "\n".join(parts) or doc.full_text
     out, buf = [], ""
@@ -240,12 +240,12 @@ def check_site(site: BodySite, source: str) -> list[dict]:
 
 
 def extract_document(text_parts: list[str]) -> list[dict]:
-    """MedGemma over each piece of one report → verified, de-duplicated findings."""
+    """The LLM over each piece of one report → verified, de-duplicated findings."""
     out, seen = [], set()
     for part in text_parts:
         try:
-            found = medgemma.extract(BodySites, INSTRUCTION, part)
-        except medgemma.LLMUnavailable as e:
+            found = llm.extract(BodySites, INSTRUCTION, part)
+        except llm.LLMUnavailable as e:
             raise RuntimeError(str(e)) from e
         for site in found.sites:
             for finding in check_site(site, part):
@@ -324,7 +324,7 @@ def _case_inputs(case_id: int) -> dict:
 
 def _signature(inputs: dict) -> str:
     raw = json.dumps([inputs["cutoff"], inputs["pathway"], [(d["id"], d["sha"]) for d in inputs["docs"]],
-                      INSTRUCTION, ORGAN_WORDS, settings.medgemma_model], sort_keys=True)
+                      INSTRUCTION, ORGAN_WORDS, settings.llm_model], sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -343,7 +343,7 @@ def compute(case_id: int, progress=lambda done, total: None) -> dict:
     progress(len(docs), len(docs))
     result = {
         "case_id": case_id, "computed_on": date.today().isoformat(), "cutoff": inputs["cutoff"],
-        "model": settings.medgemma_model, "signature": _signature(inputs),
+        "model": settings.llm_model, "signature": _signature(inputs),
         "sex": sex_from_rc(inputs["rc"]), "pathway": inputs["pathway"],
         "documents": [{"id": d["id"], "title": d["title"], "date": d["date"]} for d in docs],
         "sites": merge(evidence, inputs["pathway"]),

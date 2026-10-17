@@ -1,13 +1,13 @@
 """Messages that leave the KOC: document requests, feedback to the GP and to the insurer's review doctor.
 
-Feedback content is built from structured data (never invented). MedGemma only phrases the short document
+Feedback content is built from structured data (never invented). The LLM only phrases the short document
 request letters, with a template fallback.
 """
 from __future__ import annotations
 
 from datetime import date
 
-from backend.extract import medgemma
+from backend.extract import llm
 
 
 def _d(x) -> str:
@@ -26,12 +26,12 @@ def doc_request_letter(patient: dict, item: str, item_date: date | None, facilit
                 f"k dokončení onkologické diagnostiky a výsledek potřebujeme pro jednání MDT.\n\n"
                 f"Děkujeme,\n{coordinator}\nkoordinátor/ka {koc_name}")
     try:
-        text = medgemma.write("Napiš krátkou žádost (max. 6 vět) o zaslání lékařské zprávy. Podepiš odesílatele.", facts)
+        text = llm.write("Napiš krátkou žádost (max. 6 vět) o zaslání lékařské zprávy. Podepiš odesílatele.", facts)
         text = text.replace("**", "").replace("__", "").strip()
         # Guard: the draft must name the patient and the item, otherwise use the template.
         if patient.get("patient_name", "").split()[-1] in text and item.split()[0].lower() in text.lower():
             return text
-    except medgemma.LLMUnavailable:
+    except llm.LLMUnavailable:
         pass
     return template
 

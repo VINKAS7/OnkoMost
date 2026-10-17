@@ -5,9 +5,26 @@ from collections import defaultdict, deque
 
 from pydantic import BaseModel, Field, model_validator
 
+from backend.pathway.formats import FORMATS
+
 NODE_TYPES = {"start", "step", "decision", "mdt", "treatment", "feedback", "handover", "end"}
 COMPLETIONS = {"evidence", "manual", "branch", "auto"}
-REQUIREMENT_KINDS = {"document", "exam", "lab", "diagnosis", "precaution", "mentioned_exams_received"}
+REQUIREMENT_KINDS = {"document", "exam", "lab", "diagnosis", "precaution", "mentioned_exams_received", "described"}
+BLANK_GRAPH = {
+    "nodes": [
+        {"id": "start", "type": "start", "label": "Začátek", "label_en": "Start",
+         "phase": "intake", "owner_role": "gp", "completion": "auto",
+         "description": "První krok cesty – sem se připojí žádost nebo první dokument.",
+         "description_en": "First step of the pathway – attach the referral or the first document here."},
+        {"id": "feedback", "type": "feedback", "label": "Výsledek odeslán", "label_en": "Result sent",
+         "phase": "after_mdt", "owner_role": "coordinator", "sla_days": 2, "completion": "manual", "action": "Odeslat výsledek",
+         "description": "Koordinátor odešle závěr referujícímu lékaři.",
+         "description_en": "The coordinator sends the conclusion back to the referring doctor."},
+        {"id": "end", "type": "end", "label": "Uzavřeno", "label_en": "Closed",
+         "phase": "after_mdt", "owner_role": "coordinator", "completion": "auto"},
+    ],
+    "edges": [{"source": "start", "target": "feedback"}, {"source": "feedback", "target": "end"}],
+}
 ROLES = {
     "gp": "Referující lékař (PL)", "coordinator": "Koordinátor KOC", "koc_doctor": "Lékař KOC",
     "endoscopy": "Endoskopie", "pathology": "Patologie", "radiology": "Radiologie", "mdt": "MDT",
@@ -37,7 +54,14 @@ class Node(BaseModel):
     branch: str | None = None
     blocking: bool = True
     action: str = ""
+    # what the step needs – shown when the step is opened, and the LLM's brief (with the title) for matching documents
     description: str = ""
+    description_en: str = ""
+    # why the step is in the pathway (guideline recommendation + evidence level) – for people, not for matching
+    why: str = ""
+    why_en: str = ""
+    # OR-list of official hospital file formats this document step accepts (pdf, docx, dicom, …).
+    accepted_formats: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check(self):
@@ -45,8 +69,14 @@ class Node(BaseModel):
             raise ValueError(f"node {self.id}: unknown type {self.type}")
         if self.completion not in COMPLETIONS:
             raise ValueError(f"node {self.id}: unknown completion {self.completion}")
+        bad = [f for f in self.accepted_formats if f not in FORMATS]
+        if bad:
+            raise ValueError(f"node {self.id}: unknown file format {bad[0]}")
         if self.completion == "evidence" and not self.requires:
-            raise ValueError(f"node {self.id}: evidence completion needs at least one requirement")
+            if self.description or self.accepted_formats:
+                self.requires = [{"kind": "described"}]
+            else:
+                raise ValueError(f"node {self.id}: a document step needs a description or at least one requirement")
         for r in self.requires:
             if r.get("kind") not in REQUIREMENT_KINDS:
                 raise ValueError(f"node {self.id}: unknown requirement kind {r.get('kind')}")

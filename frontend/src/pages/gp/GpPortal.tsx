@@ -90,7 +90,7 @@ export default function GpPortal() {
             <label className="field grow">{t("gp.cancer")}
               <select value={pathway} onChange={(e) => setPathway(Number(e.target.value))}>
                 <option value="">—</option>
-                {(pathways ?? []).map((p) => <option key={p.id} value={p.id}>{pick(p.name, p.name_en)}</option>)}
+                {(pathways ?? []).filter((p) => p.active_version_id).map((p) => <option key={p.id} value={p.id}>{pick(p.name, p.name_en)}</option>)}
               </select>
             </label>
             <label className="field grow">{t("gp.koc")}

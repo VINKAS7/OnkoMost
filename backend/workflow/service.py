@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import ROOT, settings
 from backend.extract.pipeline import extract_document
+from backend.fhir import records
 from backend.graph.store import graph
 from backend.ingest.classify import classify
 from backend.ingest.identity import check_identity, patient_uuid, rc_info
@@ -187,8 +188,11 @@ def create_referral(koc_id: int, files: list[tuple[str, bytes]], actor: str = "R
                          "address": next((l for l in lines if re.search(r"\d{3}\s?\d{2}", l) and not l.startswith("IČP")), ""),
                          "phone": h.get("facility_phone")}
         rd = {**letter_doctor, **{k: v for k, v in (referrer or {}).items() if v}}
+        # identity goes to the FHIR server; the case keeps only the pseudonymous uuid
+        info = rc_info(rc)
+        records.upsert_patient(p_uuid, {"patient_name": patient_name, "rc": rc, "dob": info.get("dob") or h.get("dob"),
+                                        "sex": info.get("sex")})
         case = Case(patient_uuid=p_uuid, koc_id=koc.id, pathway_version_id=version.id,
-                    patient_name=patient_name, rc=rc, dob=rc_info(rc).get("dob") or h.get("dob"),
                     referring_doctor=rd, suspected_diagnosis=suspected, decisions={},
                     created_on=h.get("doc_date") or today(s))
         s.add(case)
@@ -241,7 +245,8 @@ def process_document(doc_id: int) -> None:
         case = s.get(Case, d.case_id)
         d.status, d.error = "processing", ""
         path, p_uuid = _abs(d.path), case.patient_uuid
-        case_rc, case_name, case_dob = case.rc, case.patient_name, case.dob
+        ident = case.identity
+        case_rc, case_name, case_dob = ident.get("rc", ""), ident.get("patient_name", ""), ident.get("dob")
     try:
         doc = read_document(path)
         ident = check_identity(doc.header, case_rc, case_name, case_dob)
@@ -264,19 +269,31 @@ def process_document(doc_id: int) -> None:
             d.doc_type, d.title, d.doc_date = x.doc_type, x.title, x.doc_date
             d.facility, d.author, d.summary = x.facility, x.author, x.summary()
             if x.doc_type != "mdt_conclusion":
+                from backend.extract.match_nodes import match_document
+                case = s.get(Case, d.case_id)
+                try:
+                    extras = match_document(
+                        (case.pathway_version.graph_json or {}).get("nodes") or [],
+                        doc_type=x.doc_type, exam_type=x.exam_type, filename=d.filename,
+                        title=x.title, excerpt=doc.full_text)
+                except Exception:  # noqa: BLE001
+                    extras = []
+                x.facts.extend(extras)
+                x.llm_calls += sum(1 for f in extras if f.method == "llm")
                 doc_uid = f"{p_uuid}:{d.sha256}"
                 graph.delete_document(doc_uid)
                 graph.write_document(p_uuid, doc_uid, {
                     "type": x.doc_type, "exam_type": x.exam_type, "title": x.title, "date": x.doc_date,
                     "facility": x.facility, "author": x.author, "filename": d.filename, "sqlite_id": d.id,
-                    "sha256": d.sha256}, [f.__dict__ for f in x.facts], x.flags, rag.chunks(doc))
+                    "sha256": d.sha256}, [f.__dict__ for f in x.facts], x.flags, rag.chunks(doc),
+                    text=doc.full_text, original=path.read_bytes())
             d.status = "done"
             # A requested report arrived?
             for r in s.scalars(select(DocRequest).where(DocRequest.case_id == d.case_id, DocRequest.status == "requested")):
                 if r.item_date and r.item_date == x.doc_date:
                     r.status, r.received_on, r.document_id = "received", today(s), d.id
                     audit(s, "doc_request.received", "system", d.case_id, item=r.item, doc_id=d.id)
-            audit(s, "document.extracted", "MedGemma + pravidla", d.case_id, doc_id=doc_id, doc_type=x.doc_type,
+            audit(s, "document.extracted", "LLM + pravidla", d.case_id, doc_id=doc_id, doc_type=x.doc_type,
                   **x.summary())
         case_id = d.case_id
     refresh(case_id)

@@ -1,4 +1,4 @@
-"""End-to-end against Neo4j + MedGemma cache: the sample case replayed through the workflow,
+"""End-to-end against IRIS (graph + FHIR) + LLM cache: the sample case replayed through the workflow,
 checked against the Rakathon answer key (MDT zaver.docx)."""
 from datetime import date, timedelta
 
@@ -16,12 +16,12 @@ from .conftest import PACIENT
 
 
 @pytest.fixture()
-def fresh(neo4j_available):
-    other_before = graph.label_counts(onk=False)
+def fresh(iris_available):
+    other_before = graph.foreign_counts()
     seed_demo.reset()
     seed()
     yield
-    assert graph.label_counts(onk=False) == other_before, "non-Onkomost Neo4j data must never change"
+    assert graph.foreign_counts() == other_before, "non-Onkomost FHIR data must never change"
 
 
 def _detail(case_id):
@@ -154,31 +154,110 @@ def test_governance_majority_of_all_kocs(fresh):
         assert s.get(Case, case_id).pathway_version_id == v1_id  # running case keeps v1
 
 
-def test_lung_pathway_route_decision(fresh):
-    """Lung pathway from the brief's image: the diagnostic route decision gates PET-CT / biopsy steps."""
-    case_id = seed_demo.run("referral")  # reuse the patient, but on the lung pathway via a second case
-    from backend.workflow.db import Koc
+def test_new_cancer_type_goes_through_the_vote(fresh):
+    with session_scope() as s:
+        set_today(s, date(2026, 11, 1))
+    with pytest.raises(gov.GovernanceError, match="already covered"):
+        gov.create_pathway(2, "Plíce 2", "Lung 2", "C34.1")  # lung owns C34
+    with pytest.raises(gov.GovernanceError, match="ICD-10"):
+        gov.create_pathway(2, "Prostata", "Prostate", "prostate")
+
+    draft = gov.create_pathway(2, "Karcinom prostaty", "Prostate cancer", "c61")
+    with session_scope() as s:
+        v = s.get(PathwayVersion, draft)
+        pathway_id = v.pathway_id
+        assert (v.status, v.version, v.based_on_version_id) == ("draft", 1, None)
+        assert v.pathway.code == "prostate_cancer" and v.pathway.icd_codes == ["C61"]
+        assert svc._pathway_for(s, "C61").pathway_id != pathway_id  # not routable before the vote
+    gov.update_pathway_info(pathway_id, 2, "Karcinom prostaty", "Prostate cancer", "C61, C62")
+    with pytest.raises(gov.GovernanceError):
+        gov.update_pathway_info(pathway_id, 3, "Cizí", "Someone else's", "C61")
+
+    p = gov.submit(draft, "Prostate cancer pathway", "new cancer type", date(2026, 11, 10), 2)
+    with session_scope() as s:
+        from backend.workflow.db import ChangeProposal
+        view = gov.proposal_view(s, s.get(ChangeProposal, p))
+        assert view["new_pathway"] and view["base_version"] == 0 and view["icd_codes"] == ["C61", "C62"]
+        assert "feedback" in view["diff"]["added_nodes"]
+    with pytest.raises(gov.GovernanceError, match="already covered"):
+        gov.create_pathway(3, "Varle", "Testis", "C62")  # the proposal being voted on claims C62
+    for k in (1, 2, 3, 4):
+        gov.cast_vote(p, k, "yes")
+    with session_scope() as s:
+        assert s.get(PathwayVersion, draft).status == "active"
+        assert svc._pathway_for(s, "C61").id == draft
+
+
+def test_discarding_a_new_cancer_type_draft_removes_it(fresh):
+    draft = gov.create_pathway(2, "", "Melanoma", "C43")
+    with pytest.raises(gov.GovernanceError):
+        gov.discard_draft(draft, 3)  # not the author
+    gov.discard_draft(draft, 2)
+    with session_scope() as s:
+        from backend.workflow.db import Pathway
+        assert not s.query(Pathway).filter_by(code="melanoma").first()
+
+
+def test_lung_pathway_extent_decision(fresh):
+    """ESMO lung pathway: the diagnostic MDT's extent decision gates the radical work-up (PET-CT, lung function,
+    mediastinal staging); biopsy and brain MRI apply to both branches."""
+    seed_demo.run("referral")  # reuse the patient, but on the lung pathway via a second case
     f = PACIENT / "07_PL_zadost_KOC2_2026-10-02.docx"
     lung = svc.create_referral(1, [(f.name, f.read_bytes())], sync=True, pathway_id=seed_demo.pathway_id("lung"),
                                patient_name="Alena Procházková", rc="635722/1013")
     nodes = {n["id"]: n for n in _detail(lung)["pathway_graph"]["nodes"]}
-    assert nodes["pet_ct"]["doc_status"] == "conditional"  # depends on the route not chosen yet
-    svc.choose_decision(lung, "route", ["non_radical"], "test")
+    assert nodes["pet_ct"]["doc_status"] == "conditional" and nodes["pft"]["doc_status"] == "conditional"
+    svc.choose_decision(lung, "extent", ["metastatic"], "test")
     nodes = {n["id"]: n for n in _detail(lung)["pathway_graph"]["nodes"]}
-    assert nodes["pet_ct"]["status"] == "skipped" and nodes["biopsy_curative"]["status"] == "skipped"
-    assert nodes["biopsy_non_radical"]["doc_status"] == "missing"
+    assert all(nodes[k]["status"] == "skipped" for k in ("pet_ct", "pft", "mediastinal"))
+    assert nodes["biopsy"]["doc_status"] == "missing" and nodes["brain_mri"]["doc_status"] == "missing"
     with pytest.raises(svc.WorkflowError):
-        svc.choose_decision(lung, "route", ["curative", "no_biopsy"], "test")  # single choice only
+        svc.choose_decision(lung, "extent", ["radical", "metastatic"], "test")  # single choice only
 
 
 def test_graphrag_finds_tumour_marker(fresh):
-    case_id = seed_demo.run("histology")
+    case_id = seed_demo.run("closed")  # includes the post-MDT pain (26. 10.) and psychology (27. 10.) reports
     from backend.rag.ask import retrieve
     with session_scope() as s:
         p_uuid = s.get(Case, case_id).patient_uuid
     hits = retrieve(p_uuid, ["CA 19-9"], date(2026, 10, 21))
     assert hits and any("312" in h["text"] for h in hits)
-    assert not retrieve(p_uuid, ["tramadol"], date(2026, 10, 21))  # pain report (26. 10.) is after the cut-off
+    assert retrieve(p_uuid, ["tramadol"], date(2026, 10, 31))
+    # the pain report is after the MDT cut-off: neither the keyword nor the vector leg may return it
+    hits = retrieve(p_uuid, ["tramadol"], date(2026, 10, 21), question="What pain medication does she take?")
+    assert hits and all(h["date"] is None or h["date"] <= date(2026, 10, 21) for h in hits)
+
+
+def test_every_chunk_has_a_vector(fresh):
+    from backend.iris import db
+    from backend.rag import index
+    if not index.embed(["test"], "passage"):
+        pytest.skip("embedding model not reachable")
+    seed_demo.run("ct")
+    total, with_vector = db.sql(f"SELECT COUNT(*), COUNT(Embedding) FROM {index.TABLE}")[0]
+    assert total and with_vector == total
+
+
+def test_identity_lives_only_in_fhir(fresh):
+    from sqlalchemy import inspect
+
+    from backend.fhir.client import fhir
+    from backend.graph.store import G
+    from backend.iris import db
+    from backend.workflow.db import engine
+    case_id = seed_demo.run("referral")
+    with session_scope() as s:
+        case = s.get(Case, case_id)
+        p_uuid = case.patient_uuid
+        assert case.patient_name == "Alena Procházková" and case.rc == "635722/1013"  # read from FHIR
+    assert fhir.read("Patient", p_uuid)["identifier"][0]["value"] == "635722/1013"
+    assert fhir.count("DocumentReference", patient=p_uuid) >= 1
+    assert "rc" not in {c["name"] for c in inspect(engine).get_columns("cases")}
+    texts = [r[0] for r in db.sql("SELECT Text FROM Onk.DocChunk WHERE PatientUuid = ?", [p_uuid])]
+    assert texts and not any("635722" in t or "Procházková" in t for t in texts)
+    with db.native() as n:
+        stored = [v for _, v in n.iterator(G, "P", p_uuid, "D")] + [v for _, v in n.iterator(G, "P", p_uuid, "F")]
+    assert stored and not any("635722" in v for v in stored)
 
 
 def _docx_text(path):

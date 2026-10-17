@@ -16,9 +16,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from backend.config import ROOT, settings
-from backend.extract import medgemma
+from backend.extract import llm
+from backend.fhir.client import fhir
 from backend.graph.store import graph
 from backend.pathway import governance as gov
+from backend.pathway.generate import generate as generate_pathway
 from backend.pathway.model import ROLES, validate
 from backend.seed import seed
 from backend.workflow import service as svc
@@ -26,7 +28,7 @@ from backend.workflow.db import (ChangeProposal, Document, Koc, Pathway, Pathway
                                  today)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-logging.getLogger("neo4j").setLevel(logging.ERROR)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(title="Onkomost API", version="0.1")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -50,6 +52,11 @@ async def _value_error(_: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
+@app.exception_handler(llm.LLMUnavailable)
+async def _llm_unavailable(_: Request, exc: llm.LLMUnavailable):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
 def ok(data=None):
     return jsonable_encoder(data if data is not None else {"ok": True})
 
@@ -59,12 +66,16 @@ def ok(data=None):
 @app.get("/api/health")
 def health():
     try:
-        neo = graph.ping()
+        iris_info = graph.ping()
     except Exception as e:  # noqa: BLE001
-        neo = f"ERROR: {e}"
+        iris_info = f"ERROR: {e}"
+    try:
+        fhir_info = fhir.ping()
+    except Exception as e:  # noqa: BLE001
+        fhir_info = f"ERROR: {e}"
     with session_scope() as s:
         t = today(s)
-    return ok({"neo4j": neo, "medgemma": medgemma.available(), "model": settings.medgemma_model, "today": t,
+    return ok({"iris": iris_info, "fhir": fhir_info, "llm": llm.available(), "model": settings.llm_model, "today": t,
                "queue": svc.queue_size()})
 
 
@@ -280,7 +291,7 @@ def mdt_brief(case_id: int):
 
 @app.get("/api/cases/{case_id}/bodymap")
 def bodymap(case_id: int):
-    """Organs affected by the cancer, read by MedGemma from the reports up to the MDT date (see reports/bodymap.py)."""
+    """Organs affected by the cancer, read by the LLM from the reports up to the MDT date (see reports/bodymap.py)."""
     from backend.reports import bodymap as bm
     return ok(bm.status(case_id))
 
@@ -440,6 +451,7 @@ def pathway_version(version_id: int):
     with session_scope() as s:
         v = s.get(PathwayVersion, version_id)
         return ok({"id": v.id, "pathway_id": v.pathway_id, "pathway": v.pathway.name, "pathway_en": v.pathway.name_en,
+                   "icd_codes": v.pathway.icd_codes, "guideline_source": v.pathway.guideline_source,
                    "version": v.version,
                    "status": v.status, "graph": v.graph_json, "based_on_version_id": v.based_on_version_id,
                    "created_by_koc_id": v.created_by_koc_id})
@@ -448,11 +460,39 @@ def pathway_version(version_id: int):
 class DraftIn(BaseModel):
     koc_id: int
     graph: dict | None = None
+    blank: bool = False
 
 
 @app.post("/api/pathways/{pathway_id}/drafts")
 def create_draft(pathway_id: int, body: DraftIn):
-    return ok({"version_id": gov.create_draft(pathway_id, body.koc_id, body.graph)})
+    return ok({"version_id": gov.create_draft(pathway_id, body.koc_id, body.graph, blank=body.blank)})
+
+
+class NewPathwayIn(BaseModel):
+    koc_id: int
+    name: str = ""
+    name_en: str = ""
+    icd_codes: list[str] | str
+    guideline_source: str = ""
+
+
+@app.post("/api/pathways")
+def create_pathway(body: NewPathwayIn):
+    """A new cancer type: returns its draft v1, which goes to the vote like any change."""
+    return ok({"version_id": gov.create_pathway(body.koc_id, body.name, body.name_en, body.icd_codes,
+                                                body.guideline_source)})
+
+
+@app.put("/api/pathways/{pathway_id}")
+def update_pathway(pathway_id: int, body: NewPathwayIn):
+    gov.update_pathway_info(pathway_id, body.koc_id, body.name, body.name_en, body.icd_codes, body.guideline_source)
+    return ok()
+
+
+@app.delete("/api/pathway-versions/{version_id}")
+def discard_draft(version_id: int, koc_id: int):
+    gov.discard_draft(version_id, koc_id)
+    return ok()
 
 
 @app.put("/api/pathway-versions/{version_id}")
@@ -468,6 +508,19 @@ def validate_graph(body: dict):
         return ok({"valid": True})
     except ValueError as e:
         return ok({"valid": False, "error": str(e)})
+
+
+class GenerateIn(BaseModel):
+    prompt: str
+    current: dict | None = None
+
+
+@app.post("/api/pathway-versions/generate")
+def generate_graph(body: GenerateIn):
+    prompt = (body.prompt or "").strip()
+    if len(prompt) < 8:
+        raise ValueError("Write a few sentences about the steps first.")
+    return ok({"graph": generate_pathway(prompt, body.current)})
 
 
 class ProposalIn(BaseModel):

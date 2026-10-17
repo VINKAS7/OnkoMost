@@ -1,4 +1,4 @@
-"""Small JSON schemas for MedGemma, one per section type (a 4B model does better with small schemas)."""
+"""Small JSON schemas for the LLM, one per section type (a 4B model does better with small schemas)."""
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -64,6 +64,11 @@ class CaseAnswer(BaseModel):
     answer: str = Field(description="Short answer (max 6 sentences) with [D<number>] citations after each fact")
     cited_documents: list[int] = Field(default_factory=list, max_length=5,
                                        description="Distinct numbers of the [D<number>] documents the answer is based on")
+
+
+class NodeFit(BaseModel):
+    matches: bool = Field(description="True only if this document is itself the report the step asks for")
+    quote: str = Field(default="", description="Exact substring of the document that shows it is that report")
 
 
 class BranchChoice(BaseModel):
