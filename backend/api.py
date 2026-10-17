@@ -20,6 +20,7 @@ from backend.extract import llm
 from backend.fhir.client import fhir
 from backend.graph.store import graph
 from backend.identity_api import router as identity_router
+from backend.medications_api import router as medications_router
 from backend.pathway import governance as gov
 from backend.pathway.generate import generate as generate_pathway
 from backend.pathway.model import ROLES, validate
@@ -33,6 +34,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(title="Onkomost API", version="0.1")
 app.include_router(identity_router)  # identity from documents + mismatch decisions (backend/identity_api.py)
+app.include_router(medications_router)  # current medication + ADME sites for the MDT anatomogram (backend/medications_api.py)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 

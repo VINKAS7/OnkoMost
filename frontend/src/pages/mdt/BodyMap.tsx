@@ -4,6 +4,7 @@ import { api, fmtDate } from "../../api";
 import { Spinner } from "../../components/ui";
 import { useApp } from "../../ctx";
 import type { BodyMap as BodyMapData, BodySite, BodyStatus } from "../../types";
+import { DrugLegend, drugOrgans, LayerSwitch, MedicationList, paintDrug, useMedications, type Layer } from "./Medications";
 
 // Fixed colours: the figure sits on a light card in both themes.
 export const BODY_COLOURS: Record<BodyStatus, string> = {
@@ -58,6 +59,14 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
   const [missing, setMissing] = useState<string[]>([]);
   const started = useRef(false);
   const switched = useRef(false);
+  // current medication (blue layer) – see Medications.tsx
+  const meds = useMedications(caseId);
+  const [layer, setLayer] = useState<Layer>("all");
+  const drugs = useMemo(() => drugOrgans(meds), [meds]);
+  const drugsRef = useRef(drugs);
+  drugsRef.current = drugs;
+  const layerRef = useRef(layer);
+  layerRef.current = layer;
 
   const load = useCallback(() => api.get<BodyMapData>(`/api/cases/${caseId}/bodymap`).then(setData).catch(() => undefined), [caseId]);
   const run = useCallback(() => api.post<BodyMapData>(`/api/cases/${caseId}/bodymap`).then(setData).catch(() => undefined), [caseId]);
@@ -75,7 +84,8 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
   }, [running, load]);
 
   const sites = useMemo(() => data?.result?.sites ?? [], [data?.result]);
-  const ids = useMemo(() => sites.flatMap((s) => s.uberon), [sites]);
+  const ids = useMemo(() => [...(layer !== "drugs" ? sites.flatMap((s) => s.uberon) : []), ...(layer !== "tumor" ? drugs.keys() : [])],
+    [sites, drugs, layer]);
   const siteOf = useCallback((list: string[]) => sites.find((s) => s.uberon.some((u) => list.includes(u))) ?? null, [sites]);
   const sitesRef = useRef(sites);
   sitesRef.current = sites;
@@ -83,7 +93,7 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
   const sexRef = useRef(sex);
   sexRef.current = sex;
   // remount the figure when the colours change (the library only paints on inject)
-  const figKey = sites.map((s) => `${s.organ}:${s.status}`).join("|");
+  const figKey = `${layer}|${[...drugs.keys()].join(",")}|${sites.map((s) => `${s.organ}:${s.status}`).join("|")}`;
   useEffect(() => { switched.current = false; }, [figKey]);
 
   const onHover = useCallback((list: string[] | null) => setHoverIds(list), []);
@@ -96,7 +106,9 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
     const female = node.closest(".bodymap")?.querySelector<HTMLImageElement>('img[src*="female.unselected"]');
     if (sexRef.current === "female" && female && !switched.current) { switched.current = true; female.click(); return; }
     // colour each organ by its status; the library would repaint them grey/red on hover
-    for (const s of sitesRef.current) {
+    const lay = layerRef.current;
+    const tumourIds = new Set(lay === "all" ? sitesRef.current.flatMap((s) => s.uberon) : []);
+    for (const s of lay === "drugs" ? [] : sitesRef.current) {
       for (const id of s.uberon) {
         const el = findTissue(node, id);
         if (!el) continue;
@@ -109,30 +121,50 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
         el.addEventListener("mouseout", paint(false));
       }
     }
+    for (const [organ] of lay === "tumor" ? [] : drugsRef.current) {
+      const el = findTissue(node, organ);
+      if (!el) continue;
+      const both = tumourIds.has(organ);
+      paintDrug(el, organ, both);
+      if (!both) {
+        el.addEventListener("mouseover", () => paintDrug(el, organ, false, true));
+        el.addEventListener("mouseout", () => paintDrug(el, organ, false));
+      }
+    }
     setMissing(sitesRef.current.filter((s) => !s.uberon.some((id) => findTissue(node, id))).map((s) => s.organ));
     setSvg(node);
   }, []);
 
   // outline the organ in focus: hovered on the figure, mentioned by the hovered report, or picked
   const focus = useMemo(() => {
-    if (hoverIds) return new Set(siteOf(hoverIds)?.uberon ?? []);
+    if (hoverIds) return new Set(siteOf(hoverIds)?.uberon ?? hoverIds);
     if (hoverDoc) return new Set(sites.filter((s) => s.evidence.some((e) => e.doc_id === hoverDoc)).flatMap((s) => s.uberon));
     if (filter) return new Set(sites.find((s) => s.organ === filter.organ)?.uberon ?? []);
     return new Set<string>();
   }, [hoverIds, hoverDoc, filter, sites, siteOf]);
   useEffect(() => {
     if (!svg) return;
-    for (const s of sites) {
+    if (layer !== "tumor") {
+      const tumourIds = new Set(layer === "all" ? sites.flatMap((s) => s.uberon) : []);
+      for (const [organ] of drugs) {
+        const el = findTissue(svg, organ);
+        if (!el || tumourIds.has(organ)) continue;
+        el.style.stroke = focus.has(organ) ? "#1f1f1f" : "";
+        el.style.strokeWidth = focus.has(organ) ? "1.5" : "";
+      }
+    }
+    for (const s of layer === "drugs" ? [] : sites) {
       for (const id of s.uberon) {
         const el = findTissue(svg, id);
         if (!el) continue;
         const on = focus.has(id);
-        el.style.stroke = on ? "#1f1f1f" : "";
-        el.style.strokeWidth = on ? "1.5" : "";
+        const drug = layer === "all" && drugs.has(id);  // finding + medication: blue outline
+        el.style.stroke = on ? "#1f1f1f" : drug ? "#1b57ae" : "";
+        el.style.strokeWidth = on ? "1.5" : drug ? "1.2" : "";
         el.style.opacity = String(on ? Math.max(0.9, alpha(s)) : alpha(s));
       }
     }
-  }, [svg, sites, focus]);
+  }, [svg, sites, focus, drugs, layer]);
 
   const pickSite = (s: BodySite) => onFilter(filter?.organ === s.organ ? null : { organ: s.organ, docIds: s.evidence.map((e) => e.doc_id) });
   const label = (s: BodySite) => pick(s.label, s.label_en);
@@ -144,14 +176,16 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
         <div className="section-title" style={{ margin: 0 }}>{t("bm.title")}</div>
         <div className="xs muted">{t("bm.sub")}</div>
       </div>
+      {drugs.size > 0 && <LayerSwitch layer={layer} setLayer={setLayer} />}
       <div className="bodymap-figure">
-        {data?.result ? <Figure key={figKey} ids={ids} onHover={onHover} onPick={onPick} onReady={onReady} /> :
+        {data?.result || drugs.size ? <Figure key={figKey} ids={ids} onHover={onHover} onPick={onPick} onReady={onReady} /> :
           <div className="xs muted" style={{ padding: 16 }}>{running ? t("bm.first") : t("bm.none")}</div>}
       </div>
       <div className="bodymap-legend">
         {(Object.keys(BODY_COLOURS) as BodyStatus[]).map((k) => (
           <span key={k}><i style={{ background: BODY_COLOURS[k] }} />{t(`bm.st.${k}`)}</span>
         ))}
+        {drugs.size > 0 && <DrugLegend />}
       </div>
 
       <div className="row wrap xs muted" style={{ gap: 8 }}>
@@ -196,6 +230,7 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
         ))}
         {data?.result && !sites.length && <div className="xs muted">{t("bm.empty")}</div>}
       </div>
+      <MedicationList m={meds} drawn={(o) => !svg || !!findTissue(svg, o)} onHover={setHoverIds} />
     </section>
   );
 }
