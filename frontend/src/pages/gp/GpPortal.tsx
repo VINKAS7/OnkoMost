@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmtDate } from "../../api";
+import { IdentityFiles, keepAfterReferral } from "../../components/IdentityCheck";
 import { DocCounts, Empty, PageHead, Status } from "../../components/ui";
 import { useAction, useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
@@ -63,6 +64,7 @@ export default function GpPortal() {
   const [files, setFiles] = useState<File[]>([]);
   const [over, setOver] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
+  const [idState, setIdState] = useState({ pending: false, undecided: 0, kept: [] as string[] });
   const { data: pathways } = useFetch<PathwayInfo[]>("/api/pathways");
   const { data: mine, reload } = useFetch<CaseSummary[]>(me ? `/api/cases?referrer=${encodeURIComponent(me)}` : null, 8000);
   useEffect(() => { save("onkomost.gp", me); save("onkomost.gp.practice", practice); }, [me, practice]);
@@ -73,9 +75,12 @@ export default function GpPortal() {
     Object.entries({ koc_id: koc, pathway_id: pathway, patient_name: name, rc, referrer_name: me, referrer_practice: practice })
       .forEach(([k, v]) => fd.append(k, String(v)));
     files.forEach((f) => fd.append("files", f));
-    run(() => api.post<{ case_id: number }>("/api/referrals", fd), t("gp.sent"), () => { setName(""); setRc(""); setFiles([]); reload(); });
+    const kept = idState.kept;
+    run(async () => { const r = await api.post<{ case_id: number }>("/api/referrals", fd); await keepAfterReferral(r.case_id, kept, me); return r; },
+      t("gp.sent"), () => { setName(""); setRc(""); setFiles([]); reload(); });
   };
-  const ready = name.trim() && /^\d{6}\/?\d{3,4}$/.test(rc.replace(/\s/g, "")) && pathway && files.length > 0;
+  const ready = name.trim() && /^\d{6}\/?\d{3,4}$/.test(rc.replace(/\s/g, "")) && pathway && files.length > 0
+    && !idState.pending && !idState.undecided;
 
   return (
     <div className="page">
@@ -105,12 +110,10 @@ export default function GpPortal() {
               onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}>
               {t("gp.drop")}
               <div className="xs faint" style={{ marginTop: 4 }}>{t("gp.docs.d")}</div>
-              <input type="file" multiple hidden accept=".docx,.txt,.png,.jpg,.jpeg" onChange={(e) => add(e.target.files)} />
+              <input type="file" multiple hidden accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" onChange={(e) => add(e.target.files)} />
             </label>
-            {files.map((f, i) => (
-              <div key={i} className="row small"><span className="grow">{f.name}</span>
-                <button className="sm ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>{t("act.cancel")}</button></div>
-            ))}
+            <IdentityFiles files={files} name={name} rc={rc} setName={setName} setRc={setRc}
+              removeFile={(i) => setFiles(files.filter((_, j) => j !== i))} onState={setIdState} />
           </div>
           <div className="row wrap" style={{ gap: 12 }}>
             <label className="field grow">{t("gp.name")}<input value={me} onChange={(e) => setMe(e.target.value)} /></label>

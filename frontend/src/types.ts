@@ -55,7 +55,7 @@ export type Finding = {
 export type DocumentRow = {
   id: number; filename: string; source: string; status: string; error: string; doc_type: string; title: string;
   doc_date: string | null; facility: string; author: string;
-  identity: { ok?: boolean; issues?: string[]; matched_on?: string[] };
+  identity: { ok?: boolean; issues?: string[]; matched_on?: string[]; accepted?: string };
   summary: { facts?: Record<string, number>; unverified?: number; llm_items?: number; llm_calls?: number;
              llm_errors?: string[]; flags?: number };
   uploaded_on: string; post_mdt: boolean;

@@ -6,6 +6,7 @@ the sample data never needs OCR.
 from __future__ import annotations
 
 import re
+import tempfile
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
@@ -13,6 +14,8 @@ from pathlib import Path
 
 import docx
 import docx.table
+
+from backend.ingest.convert import doc_to_docx, pdf_lines
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -207,6 +210,11 @@ def read_document(path: Path) -> DocText:
     suffix = path.suffix.lower()
     if suffix == ".docx":
         blocks = read_docx(path)
+    elif suffix == ".doc":  # legacy Word → .docx via LibreOffice (ingest/convert.py)
+        with tempfile.TemporaryDirectory() as d:
+            blocks = read_docx(doc_to_docx(path, Path(d)))
+    elif suffix == ".pdf" and (lines := pdf_lines(path)):
+        blocks = [Block("p", line) for line in lines]  # text-layer PDF; scanned PDFs fall through to OCR
     elif suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".pdf"}:
         blocks = read_ocr(path)
     elif suffix == ".txt":

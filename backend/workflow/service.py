@@ -23,6 +23,7 @@ from backend.extract.pipeline import extract_document
 from backend.fhir import records
 from backend.graph.store import graph
 from backend.ingest.classify import classify
+from backend.ingest import identity_scan
 from backend.ingest.identity import check_identity, patient_uuid, rc_info
 from backend.ingest.reader import fold, read_document
 from backend.pathway.conformance import Ctx, evaluate
@@ -247,9 +248,12 @@ def process_document(doc_id: int) -> None:
         path, p_uuid = _abs(d.path), case.patient_uuid
         ident = case.identity
         case_rc, case_name, case_dob = ident.get("rc", ""), ident.get("patient_name", ""), ident.get("dob")
+        kept = (d.identity or {}).get("accepted")  # user chose to keep a document of another identity
     try:
         doc = read_document(path)
-        ident = check_identity(doc.header, case_rc, case_name, case_dob)
+        ident = check_identity(identity_scan.header_for_check(doc), case_rc, case_name, case_dob)
+        if kept and not ident["ok"]:
+            ident = {**ident, "ok": True, "accepted": kept}
         x = extract_document(doc) if ident["ok"] else None
     except Exception as e:  # noqa: BLE001
         with session_scope() as s:
@@ -279,6 +283,8 @@ def process_document(doc_id: int) -> None:
                 except Exception:  # noqa: BLE001
                     extras = []
                 x.facts.extend(extras)
+                if ident.get("accepted") and ident.get("issues"):  # kept despite another identity: the case's stays
+                    x.facts = [f for f in x.facts if f.kind != "patient"]
                 x.llm_calls += sum(1 for f in extras if f.method == "llm")
                 doc_uid = f"{p_uuid}:{d.sha256}"
                 graph.delete_document(doc_uid)
@@ -854,6 +860,7 @@ def delete_case(case_id: int) -> None:
             s.delete(m)
         for d in s.scalars(select(Document).where(Document.case_id == case_id)):
             s.delete(d)
+        s.flush()  # children first: no relationship() tells the session to order these deletes
         s.delete(case)
         others = s.scalars(select(Case).where(Case.patient_uuid == p_uuid)).first()
     if not others:

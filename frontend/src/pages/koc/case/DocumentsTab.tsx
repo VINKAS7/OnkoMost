@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, fmtDate } from "../../../api";
+import { DocIdentityActions } from "../../../components/IdentityCheck";
 import { Empty, Tag } from "../../../components/ui";
 import { useAction, useApp } from "../../../ctx";
 import { HIDDEN_KINDS, kindLabel } from "../../../facts";
@@ -33,6 +34,7 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
                   <b>{d.title || d.filename}</b>
                   <div className="xs muted">{d.doc_type} · {d.filename}</div>
                   {d.identity?.issues?.length ? <div className="xs" style={{ color: d.status === "blocked" ? "var(--red)" : "var(--muted)" }}>{d.identity.issues.join("; ")}</div> : null}
+                  <DocIdentityActions c={c} d={d} reload={reload} />
                   {d.error && <div className="xs" style={{ color: "var(--red)" }}>{d.error}</div>}
                 </td>
                 <td className="small">{d.facility}<div className="muted xs">{d.author}</div></td>
