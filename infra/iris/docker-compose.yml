@@ -1,0 +1,17 @@
+services:
+  iris:
+    container_name: onkomost-iris
+    image: onkomost-iris:2026.1   # built once from ./Dockerfile; `docker compose build` to rebuild
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "1972:1972"     # superserver: SQL (DB-API) + native API (globals)
+      - "52773:52773"   # web: FHIR R4 endpoint + management portal
+    environment:
+      ISC_DATA_DIRECTORY: /durable/iris
+    volumes:
+      - onk-iris-data:/durable
+
+volumes:
+  onk-iris-data:

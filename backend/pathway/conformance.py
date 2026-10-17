@@ -1,7 +1,7 @@
 """Patient graph vs. pathway → step statuses, document status (green / red / yellow) and findings.
 
-Deterministic: every requirement is a Cypher query against the patient's graph (documents dated on/before the
-cut-off). The LLM is not involved.
+Deterministic: every requirement is a fixed query against the patient's graph in IRIS (documents dated on/before
+the cut-off). The LLM is not involved.
 
 Step status:      done | available | blocked | skipped
 Document status:  have (green) | missing (red) | conflict (yellow) | conditional (depends on an open decision)
@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from backend.extract.pipeline import ANTICOAGULANTS
-from backend.graph.store import graph
+from backend.graph.store import Snapshot, graph
 from backend.pathway.formats import format_ok
 from backend.pathway.model import Node, PathwayGraph
 
@@ -33,6 +33,14 @@ class Ctx:
     decisions: dict[str, dict] = field(default_factory=dict)  # decision node → {"keys": [...], "on": date}
     reference_date: date | None = None  # for max_age lab checks (MDT date if known)
     reviewed_flags: set[str] = field(default_factory=set)
+    _snap: Snapshot | None = field(default=None, repr=False)
+
+    @property
+    def snap(self) -> Snapshot:
+        """The patient's graph, read once per evaluation."""
+        if self._snap is None:
+            self._snap = graph.snapshot(self.patient_uuid)
+        return self._snap
 
 
 def _ev(rows: list[dict]) -> list[dict]:
@@ -40,56 +48,59 @@ def _ev(rows: list[dict]) -> list[dict]:
              "quote": (r.get("quote") or "")[:300]} for r in rows]
 
 
+def _row(d: dict, quote: str | None = "", **extra) -> dict:
+    return {"doc_id": d.get("sqlite_id"), "doc_uid": d["uid"], "title": d.get("title"), "date": d.get("date"),
+            "quote": quote, **extra}
+
+
+def _facts(ctx: Ctx, kind: str, keep, quote=None) -> list[dict]:
+    """Evidence rows for facts of `kind` that pass `keep`, stated in documents dated on/before the cut-off."""
+    return [_row(d, quote(f) if quote else src.get("quote"), filename=d.get("filename"))
+            for f, d, src in ctx.snap.edges(kind, ctx.cutoff) if keep(f)]
+
+
 def check_requirement(req: dict, ctx: Ctx) -> tuple[bool, list[dict], dict]:
-    p = {"uuid": ctx.patient_uuid, "cutoff": ctx.cutoff}
     kind = req["kind"]
-    base = "MATCH (pt:OnkPatient {uuid: $uuid})"
-    ret = "RETURN d.sqlite_id AS doc_id, d.uid AS doc_uid, d.title AS title, d.date AS date, r.quote AS quote ORDER BY d.date"
     if kind == "document":
-        rows = graph.run(f"""{base} MATCH (d:OnkDocument {{type: $t}})-[r:ABOUT]->(pt) WHERE d.date <= $cutoff
-                             RETURN d.sqlite_id AS doc_id, d.uid AS doc_uid, d.title AS title, d.date AS date, '' AS quote
-                             ORDER BY d.date""", t=req["doc_type"], **p)
+        rows = [_row(d) for d in ctx.snap.documents(ctx.cutoff, allow_undated=False) if d.get("type") == req["doc_type"]]
         return bool(rows), _ev(rows), {}
     if kind == "exam":
         types = req["exam_type"] if isinstance(req["exam_type"], list) else [req["exam_type"]]
-        rows = graph.run(f"""{base} MATCH (pt)-[:HAS]->(e:OnkExam)-[r:STATED_IN]->(d:OnkDocument)
-                             WHERE e.exam_type IN $t AND d.date <= $cutoff {ret}""", t=types, **p)
+        rows = _facts(ctx, "exam", lambda f: f.get("exam_type") in types)
         return bool(rows), _ev(rows), {}
     if kind == "diagnosis":
-        rows = graph.run(f"""{base} MATCH (pt)-[:HAS]->(x:OnkDiagnosis {{status: $s}})-[r:STATED_IN]->(d:OnkDocument)
-                             WHERE d.date <= $cutoff {ret}""", s=req.get("status", "confirmed"), **p)
+        rows = _facts(ctx, "diagnosis", lambda f: f.get("status") == req.get("status", "confirmed"))
         return bool(rows), _ev(rows), {}
     if kind == "precaution":
-        rows = graph.run(f"""{base} MATCH (pt)-[:HAS]->(x:OnkPrecaution {{precaution: $k}})-[r:STATED_IN]->(d:OnkDocument)
-                             WHERE d.date <= $cutoff {ret}""", k=req["precaution"], **p)
+        rows = _facts(ctx, "precaution", lambda f: f.get("precaution") == req["precaution"])
         return bool(rows), _ev(rows), {}
     if kind == "lab":
         ref = ctx.reference_date or ctx.cutoff
         since = ref - timedelta(days=req.get("max_age_days", 3650))
-        rows = graph.run(f"""{base} MATCH (pt)-[:HAS]->(l:OnkLabResult)-[r:STATED_IN]->(d:OnkDocument)
-                             WHERE toLower(l.analyte) = toLower($a) AND d.date <= $cutoff AND d.date >= $since
-                             RETURN d.sqlite_id AS doc_id, d.uid AS doc_uid, d.title AS title, d.date AS date,
-                                    l.analyte + ' ' + l.value + ' ' + coalesce(l.unit, '') AS quote ORDER BY d.date""",
-                         a=req["analyte"], since=since, **p)
+        analyte = req["analyte"].lower()
+        rows = [r for r in _facts(ctx, "lab", lambda f: str(f.get("analyte", "")).lower() == analyte,
+                                  quote=lambda f: f"{f.get('analyte')} {f.get('value')} {f.get('unit') or ''}")
+                if r["date"] >= since]
         return bool(rows), _ev(rows), {}
     if kind == "mentioned_exams_received":
-        items = graph.run(f"""{base} MATCH (pt)-[:HAS]->(m:OnkMentionedExam)-[:STATED_IN]->(src:OnkDocument)
-                              WHERE src.date <= $cutoff
-                              OPTIONAL MATCH (d:OnkDocument)-[:ABOUT]->(pt)
-                                WHERE d.date = m.date AND d.uid <> src.uid AND d.date <= $cutoff
-                              RETURN m.id AS id, m.label AS label, m.date AS date, m.place AS place, m.detail AS detail,
-                                     collect(d.sqlite_id) AS doc_ids, collect(d.title) AS titles ORDER BY m.date""", **p)
-        missing = [i for i in items if not i["doc_ids"]]
+        docs = ctx.snap.documents(ctx.cutoff, allow_undated=False)
+        items: dict[str, dict] = {}
+        for m, src, _ in ctx.snap.edges("mentioned_exam", ctx.cutoff):
+            it = items.setdefault(m["id"], {"id": m["id"], "label": m.get("label"), "date": m.get("date"),
+                                            "place": m.get("place"), "detail": m.get("detail"), "doc_ids": [], "titles": []})
+            for d in docs:
+                if d.get("date") == m.get("date") and d["uid"] != src["uid"]:
+                    it["doc_ids"].append(d.get("sqlite_id"))
+                    it["titles"].append(d.get("title"))
+        items_l = sorted(items.values(), key=lambda i: (i["date"] is None, i["date"] or date.min))
+        missing = [i for i in items_l if not i["doc_ids"]]
         received = [{"doc_id": i["doc_ids"][0], "title": i["titles"][0], "date": i["date"], "quote": i["label"]}
-                    for i in items if i["doc_ids"]]
+                    for i in items_l if i["doc_ids"]]
         # no referral listing prior exams → nothing to collect
-        return not missing, received, {"items": items, "missing": missing}
+        return not missing, received, {"items": items_l, "missing": missing}
     if kind == "described":
         nid = req.get("node_id") or ""
-        rows = graph.run(f"""{base} MATCH (pt)-[:HAS]->(m:OnkNodeMatch {{node_id: $nid}})-[r:STATED_IN]->(d:OnkDocument)
-                             WHERE d.date <= $cutoff
-                             RETURN d.sqlite_id AS doc_id, d.uid AS doc_uid, d.title AS title, d.date AS date,
-                                    r.quote AS quote, d.filename AS filename ORDER BY d.date""", nid=nid, **p)
+        rows = _facts(ctx, "node_match", lambda f: f.get("node_id") == nid)
         accepted = req.get("accepted_formats") or []
         kept = [r for r in rows if format_ok(accepted, r.get("filename") or "")]
         return bool(kept), _ev(kept), {}
@@ -99,10 +110,10 @@ def check_requirement(req: dict, ctx: Ctx) -> tuple[bool, list[dict], dict]:
 def should_skip(node: Node, ctx: Ctx) -> bool:
     for cond in node.skip_if:
         if cond["kind"] == "no_anticoagulant":
-            rows = graph.run("""MATCH (:OnkPatient {uuid: $uuid})-[:HAS]->(m:OnkMedication)
-                                WHERE any(a IN $names WHERE toLower(m.name) STARTS WITH a) RETURN count(m) AS c""",
-                             uuid=ctx.patient_uuid, names=list(ANTICOAGULANTS))
-            if rows[0]["c"] == 0:
+            names = [a.lower() for a in ANTICOAGULANTS]
+            meds = [f for f in ctx.snap.facts.values() if f.get("kind") == "medication"
+                    and any(str(f.get("name", "")).lower().startswith(a) for a in names)]
+            if not meds:
                 return True
     return False
 
@@ -128,6 +139,15 @@ def _gate(nid: str, pg: PathwayGraph, ctx: Ctx) -> tuple[str, date | None]:
     return "closed", None
 
 
+def _flags(ctx: Ctx) -> list[dict]:
+    out = []
+    for x in ctx.snap.flags.values():
+        d = ctx.snap.docs.get(x.get("doc"))
+        if d is not None:
+            out.append({"id": x["id"], "flag": x, "doc_id": d.get("sqlite_id"), "title": d.get("title")})
+    return out
+
+
 def _conflicts(flags: list[dict], doc_ids: set) -> list[dict]:
     return [f for f in flags if f["doc_id"] in doc_ids]
 
@@ -140,7 +160,7 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
     flags = [{"key": f"flag:{fl['id']}", "doc_id": fl["doc_id"], "title": fl["title"],
               "message": fl["flag"].get("message", ""), "message_en": fl["flag"].get("message_en", ""),
               "quote": fl["flag"].get("quote", ""), "reviewed": f"flag:{fl['id']}" in ctx.reviewed_flags}
-             for fl in graph.flags(ctx.patient_uuid)]
+             for fl in _flags(ctx)]
 
     for nid in pg.topo_order():
         node = pg.node(nid)

@@ -42,7 +42,7 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
                 <td className="small">
                   <div className="row wrap" style={{ gap: 3 }}>
                     {d.summary?.facts && Object.entries(d.summary.facts).map(([k, v]) => <Tag key={k}>{k} {v}</Tag>)}
-                    {!!d.summary?.medgemma_items && <Tag color="purple">{d.summary.medgemma_items} {t("docs.byAi")}</Tag>}
+                    {!!d.summary?.llm_items && <Tag color="purple">{d.summary.llm_items} {t("docs.byAi")}</Tag>}
                     {!!d.summary?.unverified && <Tag color="yellow">{d.summary.unverified} {t("docs.toCheck")}</Tag>}
                     {!!d.summary?.flags && <Tag color="yellow">{d.summary.flags} {t("doc.conflict").toLowerCase()}</Tag>}
                   </div>

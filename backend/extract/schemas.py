@@ -1,4 +1,4 @@
-"""Small JSON schemas for MedGemma, one per section type (a 4B model does better with small schemas)."""
+"""Small JSON schemas for the LLM, one per section type (a 4B model does better with small schemas)."""
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

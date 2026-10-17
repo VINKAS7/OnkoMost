@@ -2,7 +2,7 @@
 
 export type Koc = { id: number; code: string; name: string; city: string; coordinator_name: string; active: boolean };
 
-export type Health = { neo4j: string; medgemma: boolean; model: string; today: string; queue: number };
+export type Health = { iris: string; fhir: string; llm: boolean; model: string; today: string; queue: number };
 
 export type Task = {
   id: number; key: string; kind: "to_schedule" | "action" | "decision" | "missing_document" | "mismatch" | "missing_field" | "question";
@@ -55,7 +55,7 @@ export type DocumentRow = {
   id: number; filename: string; source: string; status: string; error: string; doc_type: string; title: string;
   doc_date: string | null; facility: string; author: string;
   identity: { ok?: boolean; issues?: string[]; matched_on?: string[] };
-  summary: { facts?: Record<string, number>; unverified?: number; medgemma_items?: number; llm_calls?: number;
+  summary: { facts?: Record<string, number>; unverified?: number; llm_items?: number; llm_calls?: number;
              llm_errors?: string[]; flags?: number };
   uploaded_on: string; post_mdt: boolean;
 };
@@ -89,7 +89,7 @@ export type CaseDetail = CaseSummary & {
 };
 
 export type Source = { doc_id: number | null; title: string; date: string | null; facility?: string; quote: string;
-                       match: "exact" | "approx" | null; method: "rule" | "medgemma" | "coordinator" | null };
+                       match: "exact" | "approx" | null; method: "rule" | "llm" | "coordinator" | null };
 export type HandoverItem = { text: string; sources: Source[]; verified: boolean; added_by?: string; edited_by?: string;
                              rows?: { analyte: string; value: string; unit: string; ref: string; flag: string | null;
                                       is_tumor_marker: boolean; panel: string }[]; result?: string };

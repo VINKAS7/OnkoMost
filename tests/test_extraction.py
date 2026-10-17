@@ -1,4 +1,4 @@
-"""Rule-based extraction (no Neo4j, no LLM)."""
+"""Rule-based extraction (no IRIS, no LLM)."""
 from datetime import date
 
 from backend.extract.pipeline import extract_document

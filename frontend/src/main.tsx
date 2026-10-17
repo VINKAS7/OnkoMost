@@ -70,7 +70,7 @@ function TopBar({ portal }: { portal: Portal }) {
   const { kocs, kocId, setKocId, health, refreshHealth, t } = useApp();
   const { run } = useAction();
   const [editing, setEditing] = useState(false);
-  const neoOk = !!health?.neo4j && !health.neo4j.startsWith("ERROR");
+  const up = (s?: string) => !!s && !s.startsWith("ERROR");
   return (
     <header className="topbar">
       {portal !== "gp" && (
@@ -89,8 +89,9 @@ function TopBar({ portal }: { portal: Portal }) {
       )}
       <div className="row right" style={{ gap: 8 }}>
         {portal !== "gp" && <Notifications />}
-        <Status pill color={health?.medgemma ? "green" : "red"} title={health?.model}>{health?.model ?? "MedGemma"}</Status>
-        <Status pill color={neoOk ? "green" : "red"} title={health?.neo4j}>Neo4j</Status>
+        <Status pill color={health?.llm ? "green" : "red"} title={health?.model}>{health?.model ?? "LLM"}</Status>
+        <Status pill color={up(health?.iris) ? "green" : "red"} title={health?.iris}>IRIS</Status>
+        <Status pill color={up(health?.fhir) ? "green" : "red"} title={health?.fhir}>FHIR</Status>
         {!!health?.queue && <Status pill color="yellow">{health.queue} …</Status>}
       </div>
     </header>

@@ -1,4 +1,4 @@
-"""Body map: the deterministic checks around MedGemma's organ findings (no Neo4j or Ollama needed)."""
+"""Body map: the deterministic checks around the LLM's organ findings (no IRIS or Ollama needed)."""
 from backend.reports.bodymap import BodySite, check_site, merge, organs_named, sex_from_rc
 
 CT = ("Tumor hlavy pankreatu 35 mm s venózním postižením VMS. Peripankreatická uzlina 12 × 9 mm, suspektní. "
@@ -33,7 +33,7 @@ def test_text_decides_organ_and_status():
 
 
 def test_histology_is_not_negative_because_of_her2():
-    # MedGemma called the whole conclusion "negative" (and the breast "prostate")
+    # the LLM called the whole conclusion "negative" (and the breast "prostate")
     got = found("prostate", "negative", HISTOLOGY, HISTOLOGY)
     assert ("breast", "primary", "left") in got
     assert ("lymph_node", "involved", "left") in got

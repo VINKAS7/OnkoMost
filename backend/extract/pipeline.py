@@ -1,7 +1,7 @@
 """One document → a list of facts (each with a source quote) + flags.
 
 Rules handle everything with a fixed shape (header, labelled anamnesis lines, labs, measurements, codes,
-dates). MedGemma only turns free-text sections into lists (conditions, symptoms, notes, MDT question) and
+dates). The LLM only turns free-text sections into lists (conditions, symptoms, notes, MDT question) and
 medications when the rule parser finds nothing. Every model output is checked against the source.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import date
 
-from backend.extract import medgemma
+from backend.extract import llm
 from backend.extract.labs import abnormal_summary, parse_labs
 from backend.extract.schemas import INSTRUCTIONS, Conditions, MdtQuestion, Medications, Symptoms
 from backend.extract.verify import quote_match
@@ -31,7 +31,7 @@ class Fact:
     props: dict
     quote: str = ""
     match: str | None = "exact"  # exact | approx | None (unverified)
-    method: str = "rule"  # rule | medgemma | coordinator
+    method: str = "rule"  # rule | llm | coordinator
     section: str = ""
 
 
@@ -56,7 +56,7 @@ class Extraction:
         return {
             "facts": kinds,
             "unverified": sum(1 for f in self.facts if f.match is None),
-            "medgemma_items": sum(1 for f in self.facts if f.method == "medgemma"),
+            "llm_items": sum(1 for f in self.facts if f.method == "llm"),
             "llm_calls": self.llm_calls,
             "llm_errors": self.llm_errors,
             "flags": len(self.flags),
@@ -118,7 +118,7 @@ NOT_SYMPTOM = re.compile(r"\bbez\b|neguje|nemel|nema\b|sobestac|pracovni neschop
 
 
 def is_not_a_symptom(name: str, onset: str | None, quote: str | None) -> bool:
-    """MedGemma 4B sometimes lists denied symptoms ('bez dušnosti'), status remarks or bare time phrases
+    """A small (4B) LLM sometimes lists denied symptoms ('bez dušnosti'), status remarks or bare time phrases
     ('v noci'); drop those."""
     if re.match(r"^(v|ve|po|pri|od|do|na)\s", fold(name).strip()):
         return True
@@ -173,8 +173,8 @@ class Extractor:
             return None
         try:
             self.x.llm_calls += 1
-            return medgemma.extract(schema, INSTRUCTIONS[instruction_key], text)
-        except medgemma.LLMUnavailable as e:
+            return llm.extract(schema, INSTRUCTIONS[instruction_key], text)
+        except llm.LLMUnavailable as e:
             self.x.llm_errors.append(str(e))
             self.use_llm = False
             return None
@@ -240,7 +240,7 @@ class Extractor:
                     name = c.name if name_exact or not verbatim else c.quote.strip(" ,.")
                     # merge key: the verbatim name (same wording in every GP letter), else the quote
                     key = slug(c.name if name_exact else (c.quote if verbatim else c.name), 2)
-                    self.add("condition", key, {"name": name, "since": c.since}, c.quote, "medgemma", sec, oa)
+                    self.add("condition", key, {"name": name, "since": c.since}, c.quote, "llm", sec, oa)
             else:
                 for part in split_top_level(oa):
                     if len(part) > 3:
@@ -266,7 +266,7 @@ class Extractor:
         res = self.llm(Medications, "medications", text)
         for m in (res.medications if res else []):
             self.add("medication", slug(m.name, 1), {"name": m.name, "dose": m.dose, "schedule": m.schedule}, m.quote,
-                     "medgemma", section, text)
+                     "llm", section, text)
 
     def coded_diagnoses(self) -> None:
         """Lines starting with an ICD-10 code. C/D0x codes = cancer diagnosis, others = comorbidity."""
@@ -311,7 +311,7 @@ class Extractor:
             else:
                 res = self.llm(MdtQuestion, "mdt_question", req)
                 if res and res.question and quote_match(res.quote, req) and "referring doctor" not in res.question:
-                    self.add("mdt_question", "mdt_question", {"text": res.question}, res.quote, "medgemma", "ŽÁDOST", req)
+                    self.add("mdt_question", "mdt_question", {"text": res.question}, res.quote, "llm", "ŽÁDOST", req)
         if self.x.doc_type == "referral":
             for text, sec in [(req, "ŽÁDOST"), (epi, "EPIKRÍZA")]:
                 for sentence in (x for line in (text or "").splitlines() for x in re.split(r"(?<=\.)\s+", line)):
@@ -337,7 +337,7 @@ class Extractor:
                     continue
                 seen.add(key)
                 onset = None if not s.onset or re.search(r"neuv|nezn|^-$", fold(s.onset)) else s.onset
-                self.add("symptom", key, {"name": s.symptom, "onset": onset}, s.quote, "medgemma", section, para)
+                self.add("symptom", key, {"name": s.symptom, "onset": onset}, s.quote, "llm", section, para)
 
     def exam(self) -> None:
         if not self.x.exam_type:

@@ -46,12 +46,12 @@ export function SourceChips({ sources }: { sources: Source[] }) {
   return (
     <span>
       {sources.map((s, i) => {
-        const how = s.method === "medgemma" ? (lang === "en" ? "read by MedGemma" : "vytěženo MedGemma") : (lang === "en" ? "read by rule" : "vytěženo pravidlem");
+        const how = s.method === "llm" ? (lang === "en" ? "read by the LLM" : "vytěženo LLM") : (lang === "en" ? "read by rule" : "vytěženo pravidlem");
         const ok = s.match ? `${lang === "en" ? "quote" : "citace"} ${s.match}` : (lang === "en" ? "quote not found in source" : "citace ve zdroji nenalezena");
         const tip = `${s.title ?? ""} (${fmtDate(s.date)})\n„${s.quote}“\n${how} · ${ok}`;
-        const cls = !s.match ? "bad" : s.method === "medgemma" ? "ai" : "";
+        const cls = !s.match ? "bad" : s.method === "llm" ? "ai" : "";
         const short = (s.title ?? "").replace(/^(Výsledek vyšetření|Výsledky laboratorního vyšetření|Ambulantní zpráva)\s*[–-]?\s*/, "").slice(0, 30) || (s.title ?? "").slice(0, 30);
-        const body = <>{short || "zdroj"}{s.date ? ` · ${fmtDate(s.date)}` : ""}{s.method === "medgemma" ? " · AI" : ""}</>;
+        const body = <>{short || "zdroj"}{s.date ? ` · ${fmtDate(s.date)}` : ""}{s.method === "llm" ? " · AI" : ""}</>;
         return s.doc_id ? <a key={i} className={`chip ${cls}`} title={tip} href={`/api/documents/${s.doc_id}/raw`}>{body}</a>
           : <span key={i} className={`chip ${cls}`} title={tip}>{body}</span>;
       })}

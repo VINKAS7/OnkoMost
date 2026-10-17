@@ -1,4 +1,4 @@
-"""MedGemma via Ollama: structured extraction (JSON schema) and short message drafting.
+"""The local LLM (LLM_MODEL, e.g. qwen3.5:4b) via Ollama: structured extraction (JSON schema) and short message drafting.
 
 Every call is cached on disk (storage/llm_cache), keyed by model + prompt + schema, so re-runs and tests are
 fast and repeatable. The model never decides anything: its output is verified against the source text and
@@ -40,7 +40,7 @@ def _cache_path(payload: dict):
 def _chat(messages: list[dict], fmt: dict | str | None, num_predict: int = 1024,
           temperature: float = 0, num_ctx: int = 4096, cache: bool = True) -> str:
     payload = {
-        "model": settings.medgemma_model,
+        "model": settings.llm_model,
         "messages": messages,
         "stream": False,
         "think": False,
@@ -55,10 +55,10 @@ def _chat(messages: list[dict], fmt: dict | str | None, num_predict: int = 1024,
         r = httpx.post(f"{settings.ollama_url}/api/chat", json=payload, timeout=300)
         r.raise_for_status()
     except httpx.HTTPError as e:
-        raise LLMUnavailable(f"Ollama/{settings.medgemma_model}: {e}") from e
+        raise LLMUnavailable(f"Ollama/{settings.llm_model}: {e}") from e
     content = r.json()["message"]["content"]
     if cache:
-        path.write_text(json.dumps({"content": content, "model": settings.medgemma_model}, ensure_ascii=False),
+        path.write_text(json.dumps({"content": content, "model": settings.llm_model}, ensure_ascii=False),
                         encoding="utf-8")
     return content
 
@@ -76,11 +76,11 @@ def extract(schema: type[T], instruction: str, text: str) -> T:
         salvaged = _salvage(raw, schema)
         if salvaged is not None:
             return salvaged
-        log.warning("MedGemma returned JSON that does not fit %s: %s", schema.__name__, str(e)[:300])
+        log.warning("The LLM returned JSON that does not fit %s: %s", schema.__name__, str(e)[:300])
         try:
             return schema()
         except ValidationError:
-            raise LLMUnavailable(f"MedGemma output did not match {schema.__name__}") from e
+            raise LLMUnavailable(f"LLM output did not match {schema.__name__}") from e
 
 
 def _salvage(raw: str, schema: type[T]) -> T | None:
@@ -163,7 +163,7 @@ def write(instruction: str, facts: str, max_tokens: int = 400) -> str:
 def available() -> bool:
     try:
         tags = httpx.get(f"{settings.ollama_url}/api/tags", timeout=3).json()
-        base = settings.medgemma_model.split(":")[0]
+        base = settings.llm_model.split(":")[0]
         return any(m["name"].split(":")[0] == base for m in tags.get("models", []))
     except httpx.HTTPError:
         return False

@@ -2,7 +2,7 @@
 
     python -m scripts.seed_demo                 # whole story, ends with the case closed
     python -m scripts.seed_demo --until accepted  # stop early and continue live in the UI
-    python -m scripts.seed_demo --reset-only      # wipe Onkomost data (SQLite + :Onk nodes only)
+    python -m scripts.seed_demo --reset-only      # wipe Onkomost data (SQLite + ^OnkGraph + Onk.DocChunk + tagged FHIR)
 
 Steps: referral → accepted → prior_reports → ct → biopsy → labs → histology → ready → mdt → feedback → closed
 """
@@ -46,7 +46,7 @@ def upload(case_id: int, name: str, source: str = "upload") -> None:
 def reset() -> None:
     from backend.workflow.db import Base
     Base.metadata.drop_all(engine)
-    print(f"Neo4j: removed {graph.reset()} Onkomost nodes (other data untouched)")
+    print(f"IRIS: removed {graph.reset()} Onkomost graph nodes, chunks and FHIR resources (other data untouched)")
 
 
 def run(until: str) -> int:

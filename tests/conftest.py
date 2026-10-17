@@ -1,5 +1,6 @@
-"""Tests use their own SQLite file. Neo4j is shared: the tests wipe and rebuild ONLY the :Onk nodes
-(the same sample patient the demo uses), and check that nothing else in the database changes."""
+"""Tests use their own SQLite file. IRIS is shared: the tests wipe and rebuild ONLY Onkomost's data (^OnkGraph,
+Onk.DocChunk and the FHIR resources tagged `onkomost` – the same sample patient the demo uses), and check that nothing
+else on the FHIR server changes."""
 import os
 import sys
 import tempfile
@@ -26,10 +27,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(scope="session")
-def neo4j_available():
+def iris_available():
+    from backend.fhir.client import fhir
     from backend.graph.store import graph
     try:
         graph.ping()
+        fhir.ping()
     except Exception as e:  # noqa: BLE001
-        pytest.skip(f"Neo4j not reachable: {e}")
+        pytest.skip(f"IRIS / FHIR not reachable: {e}")
     return graph

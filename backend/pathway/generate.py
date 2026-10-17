@@ -8,7 +8,7 @@ from collections import defaultdict, deque
 
 from pydantic import BaseModel, Field, model_validator
 
-from backend.extract import medgemma
+from backend.extract import llm
 from backend.pathway.formats import FORMATS
 from backend.pathway.model import NODE_TYPES, ROLES, validate
 
@@ -149,10 +149,10 @@ SYSTEM = (
 def generate(prompt: str, current: dict | None = None) -> dict:
     """Ask the local model for the pathway the user described, then repair into a valid graph."""
     user = _user_prompt(prompt, current)
-    data = medgemma.complete_json(SYSTEM, user, num_predict=2200, temperature=0.3, num_ctx=4096)
+    data = llm.complete_json(SYSTEM, user, num_predict=2200, temperature=0.3, num_ctx=4096)
     draft = _draft_from_llm(data)
     if not draft.get("nodes"):
-        raise medgemma.LLMUnavailable("the model returned no steps – describe the diagnosis and the exams in more detail")
+        raise llm.LLMUnavailable("the model returned no steps – describe the diagnosis and the exams in more detail")
     return materialize(draft)
 
 

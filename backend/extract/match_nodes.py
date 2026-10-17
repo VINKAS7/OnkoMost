@@ -1,14 +1,15 @@
 """Decide whether an uploaded document fulfills a pathway document-step.
 
 Uses the step's title + description (what the coordinator wrote) and the allowed file formats.
-A rule check runs first; MedGemma is only asked when the step has a description and the rule is unsure.
+A rule check runs first; the LLM is only asked when the step has a description, lists a `described`
+requirement, and the rule is unsure.
 """
 from __future__ import annotations
 
 import logging
 import re
 
-from backend.extract import medgemma
+from backend.extract import llm
 from backend.extract.pipeline import Fact
 from backend.extract.schemas import NodeFit
 from backend.extract.verify import quote_match
@@ -65,17 +66,19 @@ def match_document(nodes: list[dict], *, doc_type: str, exam_type: str | None, f
         title_n, desc = _brief(node)
         hit = _rule_match(node, doc_type, exam_type, filename, title)
         method, quote = "rule", title or filename
-        if not hit and desc:
+        # the LLM only for steps that ask to be matched by their description; steps with machine-readable
+        # requirements only (the seeded pathways) stay deterministic
+        if not hit and desc and any(r.get("kind") == "described" for r in node.get("requires") or []):
             try:
-                fit = medgemma.extract(NodeFit, _INSTRUCTION,
+                fit = llm.extract(NodeFit, _INSTRUCTION,
                                        f"STEP TITLE: {title_n}\nSTEP DESCRIPTION: {desc}\n"
                                        f"ALLOWED FORMATS: {', '.join(node.get('accepted_formats') or ['any'])}\n"
                                        f"DOCUMENT TYPE: {doc_type}\nEXAM: {exam_type or '—'}\n"
                                        f"FILE: {filename}\nDOCUMENT TITLE: {title}\n\n--- DOCUMENT ---\n{excerpt[:2500]}")
                 qm = quote_match(fit.quote, excerpt) if fit.quote else None
                 if fit.matches and (qm or not excerpt.strip()):
-                    hit, method, quote = True, "medgemma", (fit.quote or title)[:300]
-            except medgemma.LLMUnavailable:
+                    hit, method, quote = True, "llm", (fit.quote or title)[:300]
+            except llm.LLMUnavailable:
                 log.info("skip LLM node match for %s: model offline", node.get("id"))
         if hit:
             facts.append(Fact(kind="node_match", key=node["id"],

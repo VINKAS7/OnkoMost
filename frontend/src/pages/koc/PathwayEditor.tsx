@@ -53,7 +53,7 @@ export default function PathwayEditor() {
   const [aiError, setAiError] = useState("");
   const { run, busy } = useAction();
   const nav = useNavigate();
-  const llmOn = health?.medgemma !== false;
+  const llmOn = health?.llm !== false;
 
   useEffect(() => { if (v && !g) setG(structuredClone(v.graph)); }, [v, g]);
   useEffect(() => {

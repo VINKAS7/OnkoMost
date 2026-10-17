@@ -16,7 +16,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from backend.config import ROOT, settings
-from backend.extract import medgemma
+from backend.extract import llm
+from backend.fhir.client import fhir
 from backend.graph.store import graph
 from backend.pathway import governance as gov
 from backend.pathway.generate import generate as generate_pathway
@@ -27,7 +28,7 @@ from backend.workflow.db import (ChangeProposal, Document, Koc, Pathway, Pathway
                                  today)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-logging.getLogger("neo4j").setLevel(logging.ERROR)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(title="Onkomost API", version="0.1")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -51,8 +52,8 @@ async def _value_error(_: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
-@app.exception_handler(medgemma.LLMUnavailable)
-async def _llm_unavailable(_: Request, exc: medgemma.LLMUnavailable):
+@app.exception_handler(llm.LLMUnavailable)
+async def _llm_unavailable(_: Request, exc: llm.LLMUnavailable):
     return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
@@ -65,12 +66,16 @@ def ok(data=None):
 @app.get("/api/health")
 def health():
     try:
-        neo = graph.ping()
+        iris_info = graph.ping()
     except Exception as e:  # noqa: BLE001
-        neo = f"ERROR: {e}"
+        iris_info = f"ERROR: {e}"
+    try:
+        fhir_info = fhir.ping()
+    except Exception as e:  # noqa: BLE001
+        fhir_info = f"ERROR: {e}"
     with session_scope() as s:
         t = today(s)
-    return ok({"neo4j": neo, "medgemma": medgemma.available(), "model": settings.medgemma_model, "today": t,
+    return ok({"iris": iris_info, "fhir": fhir_info, "llm": llm.available(), "model": settings.llm_model, "today": t,
                "queue": svc.queue_size()})
 
 
@@ -286,7 +291,7 @@ def mdt_brief(case_id: int):
 
 @app.get("/api/cases/{case_id}/bodymap")
 def bodymap(case_id: int):
-    """Organs affected by the cancer, read by MedGemma from the reports up to the MDT date (see reports/bodymap.py)."""
+    """Organs affected by the cancer, read by the LLM from the reports up to the MDT date (see reports/bodymap.py)."""
     from backend.reports import bodymap as bm
     return ok(bm.status(case_id))
 

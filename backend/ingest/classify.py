@@ -1,4 +1,4 @@
-"""Document type from the title/headings (rules). MedGemma is only asked when no rule matches."""
+"""Document type from the title/headings (rules). The LLM is only asked when no rule matches."""
 from __future__ import annotations
 
 import re

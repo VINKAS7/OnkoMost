@@ -1,4 +1,4 @@
-"""End-to-end against Neo4j + MedGemma cache: the sample case replayed through the workflow,
+"""End-to-end against IRIS (graph + FHIR) + LLM cache: the sample case replayed through the workflow,
 checked against the Rakathon answer key (MDT zaver.docx)."""
 from datetime import date, timedelta
 
@@ -16,12 +16,12 @@ from .conftest import PACIENT
 
 
 @pytest.fixture()
-def fresh(neo4j_available):
-    other_before = graph.label_counts(onk=False)
+def fresh(iris_available):
+    other_before = graph.foreign_counts()
     seed_demo.reset()
     seed()
     yield
-    assert graph.label_counts(onk=False) == other_before, "non-Onkomost Neo4j data must never change"
+    assert graph.foreign_counts() == other_before, "non-Onkomost FHIR data must never change"
 
 
 def _detail(case_id):
@@ -172,13 +172,48 @@ def test_lung_pathway_route_decision(fresh):
 
 
 def test_graphrag_finds_tumour_marker(fresh):
-    case_id = seed_demo.run("histology")
+    case_id = seed_demo.run("closed")  # includes the post-MDT pain (26. 10.) and psychology (27. 10.) reports
     from backend.rag.ask import retrieve
     with session_scope() as s:
         p_uuid = s.get(Case, case_id).patient_uuid
     hits = retrieve(p_uuid, ["CA 19-9"], date(2026, 10, 21))
     assert hits and any("312" in h["text"] for h in hits)
-    assert not retrieve(p_uuid, ["tramadol"], date(2026, 10, 21))  # pain report (26. 10.) is after the cut-off
+    assert retrieve(p_uuid, ["tramadol"], date(2026, 10, 31))
+    # the pain report is after the MDT cut-off: neither the keyword nor the vector leg may return it
+    hits = retrieve(p_uuid, ["tramadol"], date(2026, 10, 21), question="What pain medication does she take?")
+    assert hits and all(h["date"] is None or h["date"] <= date(2026, 10, 21) for h in hits)
+
+
+def test_every_chunk_has_a_vector(fresh):
+    from backend.iris import db
+    from backend.rag import index
+    if not index.embed(["test"], "passage"):
+        pytest.skip("embedding model not reachable")
+    seed_demo.run("ct")
+    total, with_vector = db.sql(f"SELECT COUNT(*), COUNT(Embedding) FROM {index.TABLE}")[0]
+    assert total and with_vector == total
+
+
+def test_identity_lives_only_in_fhir(fresh):
+    from sqlalchemy import inspect
+
+    from backend.fhir.client import fhir
+    from backend.graph.store import G
+    from backend.iris import db
+    from backend.workflow.db import engine
+    case_id = seed_demo.run("referral")
+    with session_scope() as s:
+        case = s.get(Case, case_id)
+        p_uuid = case.patient_uuid
+        assert case.patient_name == "Alena Procházková" and case.rc == "635722/1013"  # read from FHIR
+    assert fhir.read("Patient", p_uuid)["identifier"][0]["value"] == "635722/1013"
+    assert fhir.count("DocumentReference", patient=p_uuid) >= 1
+    assert "rc" not in {c["name"] for c in inspect(engine).get_columns("cases")}
+    texts = [r[0] for r in db.sql("SELECT Text FROM Onk.DocChunk WHERE PatientUuid = ?", [p_uuid])]
+    assert texts and not any("635722" in t or "Procházková" in t for t in texts)
+    with db.native() as n:
+        stored = [v for _, v in n.iterator(G, "P", p_uuid, "D")] + [v for _, v in n.iterator(G, "P", p_uuid, "F")]
+    assert stored and not any("635722" in v for v in stored)
 
 
 def _docx_text(path):

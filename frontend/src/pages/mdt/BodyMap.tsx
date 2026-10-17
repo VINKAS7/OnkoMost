@@ -45,7 +45,7 @@ const Figure = memo(function Figure({ ids, onHover, onPick, onReady }: FigurePro
 export type BodyFilter = { organ: string; docIds: number[] } | null;
 
 /**
- * MDT body map: MedGemma reads the reports up to the MDT date and lists the organs affected by the cancer;
+ * MDT body map: the LLM reads the reports up to the MDT date and lists the organs affected by the cancer;
  * they are coloured on the EBI Expression Atlas anatomogram. Clicking an organ filters the brief and the documents.
  */
 export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
@@ -62,11 +62,11 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
   const load = useCallback(() => api.get<BodyMapData>(`/api/cases/${caseId}/bodymap`).then(setData).catch(() => undefined), [caseId]);
   const run = useCallback(() => api.post<BodyMapData>(`/api/cases/${caseId}/bodymap`).then(setData).catch(() => undefined), [caseId]);
   useEffect(() => { started.current = false; switched.current = false; setData(null); load(); }, [load]);
-  // first visit (or new reports since the last run): start MedGemma automatically
+  // first visit (or new reports since the last run): start the LLM automatically
   useEffect(() => {
-    if (!data || started.current || data.job.status === "running" || !health?.medgemma) return;
+    if (!data || started.current || data.job.status === "running" || !health?.llm) return;
     if (data.stale) { started.current = true; run(); }
-  }, [data, health?.medgemma, run]);
+  }, [data, health?.llm, run]);
   const running = data?.job.status === "running";
   useEffect(() => {
     if (!running) return;
@@ -157,11 +157,11 @@ export default function BodyMap({ caseId, filter, onFilter, hoverDoc }: {
       <div className="row wrap xs muted" style={{ gap: 8 }}>
         {running ? <><Spinner /> {t("bm.reading")} {data?.job.done ?? 0}/{data?.job.total || "…"}</> :
           <>
-            {data?.result && <span>MedGemma · {fmtDate(data.result.computed_on)}</span>}
+            {data?.result && <span>LLM · {fmtDate(data.result.computed_on)}</span>}
             {data?.stale && data?.result && <span style={{ color: "var(--yellow)" }}>{t("bm.stale")}</span>}
             {data?.job.status === "error" && <span style={{ color: "var(--red)" }}>{data.job.error}</span>}
-            {health && !health.medgemma && <span>{t("top.ai.off")}</span>}
-            <button className="sm ghost right" disabled={!health?.medgemma} onClick={() => { started.current = true; run(); }}>{t("bm.rerun")}</button>
+            {health && !health.llm && <span>{t("top.ai.off")}</span>}
+            <button className="sm ghost right" disabled={!health?.llm} onClick={() => { started.current = true; run(); }}>{t("bm.rerun")}</button>
           </>}
       </div>
 

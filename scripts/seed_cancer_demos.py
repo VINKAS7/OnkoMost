@@ -2,10 +2,10 @@
 panel (and its body map) can be shown for every cancer type.
 
     python -m scripts.seed_cancer_demos            # add the patients that are not there yet
-    python -m scripts.seed_cancer_demos --bodymap  # … and run the MedGemma body map for them
+    python -m scripts.seed_cancer_demos --bodymap  # … and run the LLM body map for them
 
 Each patient gets short synthetic Czech reports (.docx, same layout as the Rakathon sample), is referred through the
-normal workflow (identity check, MedGemma extraction, pathway conformance), accepted, walked through the manual
+normal workflow (identity check, LLM extraction, pathway conformance), accepted, walked through the manual
 diagnostic steps and given an MDT date. `python -m scripts.seed_demo` still resets everything.
 """
 from __future__ import annotations
@@ -18,6 +18,7 @@ from datetime import date
 import docx
 from sqlalchemy import select
 
+from backend.ingest.identity import patient_uuid
 from backend.workflow import service as svc
 from backend.workflow.db import Case, Pathway, session_scope
 
@@ -174,7 +175,7 @@ def pathway_id(code: str) -> int:
 
 def existing(rc: str) -> int | None:
     with session_scope() as s:
-        c = s.scalars(select(Case).where(Case.rc == rc)).first()
+        c = s.scalars(select(Case).where(Case.patient_uuid == patient_uuid(rc))).first()
         return c.id if c else None
 
 
@@ -206,7 +207,7 @@ def walk(case_id: int) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bodymap", action="store_true", help="also run the MedGemma body map")
+    ap.add_argument("--bodymap", action="store_true", help="also run the LLM body map")
     args = ap.parse_args()
     ids = []
     for p in PATIENTS:
