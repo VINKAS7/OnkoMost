@@ -51,7 +51,13 @@
   const dx = $('dx');
   // ?src=<url>&mode=…&lang=… override the defaults (e.g. ?src=/api/dx-pathways/ovary)
   const q = new URLSearchParams(location.search);
-  for (const k of ['src', 'mode', 'lang']) if (q.get(k)) { dx.setAttribute(k, q.get(k)); if ($(k).querySelector(`option[value="${q.get(k)}"]`) || k !== 'src') $(k).value = q.get(k); }
+  for (const k of ['src', 'mode', 'lang']) {
+    const v = q.get(k);
+    if (!v) continue;
+    dx.setAttribute(k, v);
+    if (![...$(k).options].some((o) => o.value === v)) $(k).add(new Option(v, v)); // e.g. another API pathway
+    $(k).value = v;
+  }
   const show = () => { $('state').textContent = JSON.stringify(dx.state, null, 2); };
   const SAMPLE = {
     pancreas: { nodes: { referral: 'done', triage: 'done', bloods: 'done', ct_pancreas: 'done', ca19_9: 'in_progress', biliary_drainage: 'done' },

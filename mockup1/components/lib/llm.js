@@ -14,7 +14,11 @@ const lastUser = (messages) => [...messages].reverse().find((m) => m.role === 'u
 // --- mock provider --------------------------------------------------------
 const MOCK = {
   'extract-handover': async () => loadJSON('data/handover-novak.json'),
-  'structure-mdt': async () => loadJSON('data/mdt-structured-novak.json'),
+  'structure-mdt': async (messages) => {
+    let caseId = 'novak';
+    try { caseId = JSON.parse(lastUser(messages)).caseId || caseId; } catch { /* plain-text prompt */ }
+    return loadJSON(`data/mdt-structured-${caseId}.json`);
+  },
   'summarize-for-reviewer': async () => (await loadJSON('data/closed-cases.json')).novak.summary,
   'classify-document': async (messages) => {
     const name = lastUser(messages).toLowerCase();
@@ -30,6 +34,10 @@ const MOCK = {
   },
   'draft-message': async (messages) => {
     const { to, caseId = 'novak' } = JSON.parse(lastUser(messages) || '{}');
+    if (caseId === 'prochazkova') {
+      if (to === 'patient') return { text: 'Dobrý den, připomínáme termíny v KOC Nemocnice Lipová. Dotazy: koordinace GIT, tel. 241 000 650.' };
+      return { text: 'Dobrý den, pane doktore, paní Procházková je převzata do KOC Nemocnice Lipová. CT zajistíme v KOC Nemocnice Severní, EUS-FNB u nás; MDT GIT plánujeme na 21. 10. Prosíme o doplnění výkonnostního stavu (ECOG 0–4) a konkrétní otázky na MDT.' };
+    }
     if (caseId === 'vesela') {
       if (to === 'patient') return { text: 'Dobrý den, připomínáme vyšetření v KOC VFN. Termíny najdete v SMS od koordinátorky. Dotazy: koordinace gynekoonkologie, tel. 224 96• •••.' };
       if (to === 'reviewer') return { text: 'Dobrý den, k případu paní Veselé doplňujeme: ' };

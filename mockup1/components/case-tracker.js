@@ -4,7 +4,7 @@ import { icon } from './lib/icons.js';
 import { getCase, templateFor, isPrebaked } from './lib/store.js';
 import { CASES } from './lib/cases.js';
 import { deriveSteps } from './lib/derive.js';
-import { currentScreen, DEMO_DATES, fmtDate } from './lib/dates.js';
+import { currentScreen, demoDate, fmtDate } from './lib/dates.js';
 
 const STATE_LABEL = { done: 'hotovo', 'done-with-issue': 'hotovo s výhradou', active: 'probíhá', todo: 'čeká' };
 
@@ -61,7 +61,7 @@ class CaseTracker extends KocElement {
             </li>`)}
         </ol>
         ${this.children.length ? html`<div class="slot"><slot></slot></div>` : ''}
-        ${isPrebaked(this.caseId, screen) ? html`<p class="note prebaked">${icon('clock')}<span>Připravený stav k demo datu ${fmtDate(DEMO_DATES[screen], { year: true })}. Pro živý průchod ${CASES[this.caseId].gpFlow
+        ${isPrebaked(this.caseId, screen) ? html`<p class="note prebaked">${icon('clock')}<span>Připravený stav k demo datu ${fmtDate(demoDate(screen, this.caseId), { year: true })}. Pro živý průchod ${CASES[this.caseId].gpFlow
           ? html`začněte na obrazovce <a href="#/gp">referujícího lékaře</a>`
           : html`převezměte případ na obrazovce <a href="#/koordinator">koordinátora</a>`}.</span></p>` : ''}
       </section>`;

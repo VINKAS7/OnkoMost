@@ -151,7 +151,7 @@ The same JSON can be stored as a graph in the shared Neo4j and served by the pro
 
 ### Setup
 
-All commands run from `mockup1/`:
+All commands run from `mockup1/`. The short way is `scripts/setup.sh` once, then `scripts/start.sh`: it starts Neo4j, imports the pathways that are missing and serves everything on http://localhost:8000/ (`--viewer` adds the pathway viewer on :5180). Step by step:
 
 ```bash
 scripts/setup.sh                 # .venv + backend/requirements.txt + backend/.env (once)

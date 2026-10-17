@@ -25,6 +25,8 @@
 <div class="stack">
 <missing-list case-id="selected" audience="koordinator">
 </missing-list>
+<doc-gap-scan case-id="selected" role="koordinator">
+</doc-gap-scan>
 <handover-panel case-id="selected" compact>
 </handover-panel>
 <msg-thread case-id="selected">

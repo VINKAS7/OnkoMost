@@ -4,7 +4,8 @@ The report documents exactly what Josef Novák's referral is still missing on th
 count + coagulation, medication without anticoagulants) and, as traps for the LLM, says that CT has not been done
 and histology is not available yet. Fictional patient, facility and doctors.
 
-    python3 scripts/make-demo-docs.py            # from mockup1/; needs google-chrome (PDF) and python-docx (DOCX)
+    python3 scripts/make-demo-docs.py                 # from mockup1/; needs google-chrome (PDF) and python-docx (DOCX)
+    python3 scripts/make-demo-docs.py prochazkova     # only the Procházková handover + MDT record (prochazkova_docs.py)
 """
 from __future__ import annotations
 
@@ -122,8 +123,25 @@ def make_docx(path: Path) -> None:
     doc.save(path)
 
 
-if __name__ == "__main__":
-    OUT.mkdir(parents=True, exist_ok=True)
+def make_novak() -> None:
     make_pdf(OUT / f"{NAME}.pdf")
     make_docx(OUT / f"{NAME}.docx")
     print(f"wrote {OUT / NAME}.pdf and .docx")
+
+
+def make_prochazkova() -> None:
+    # Procházková (Rakathon 2026 competition case): handover per Handover_obsah + MDT record per MDT_zapis
+    from importlib import util
+    spec = util.spec_from_file_location("prochazkova_docs", Path(__file__).with_name("prochazkova_docs.py"))
+    mod = util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.build(OUT)
+
+
+DOCS = {"novak": make_novak, "prochazkova": make_prochazkova}
+
+if __name__ == "__main__":
+    import sys
+    OUT.mkdir(parents=True, exist_ok=True)
+    for name in sys.argv[1:] or DOCS:
+        DOCS[name]()

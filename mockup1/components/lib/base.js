@@ -104,6 +104,11 @@ export class KocElement extends HTMLElement {
       const id = e.detail?.id;
       if (!id || id === this.caseId) this.update();
     });
+    // Demo reset: forget per-case UI state (caseChanged) of the reset case, or of all cases.
+    this.listen(window, 'koc:reset', (e) => {
+      const id = e.detail?.id;
+      if (!id || id === this.caseId) this.caseChanged?.();
+    });
     this.init?.();
     this.update();
   }

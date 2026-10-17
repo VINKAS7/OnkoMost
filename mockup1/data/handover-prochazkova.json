@@ -1,0 +1,144 @@
+{
+  "template": "pancreas-koc2",
+  "templateLabel": "karcinom pankreatu – KOC Lipová",
+  "schema": "Handover_obsah (Rakathon 2026)",
+  "asOf": "2026-10-02",
+  "sections": [
+    {
+      "id": "identity",
+      "title": "Nacionále",
+      "text": "Alena Procházková · 63 let (nar. 22. 7. 1963) · žena · RČ 635722/1013 · zdravotní pojišťovna 211",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "contacts",
+      "title": "Kontakty",
+      "text": "Pacientka: tel. +420 777 000 541, Za Školou 17, 252 41 Dolní Břežany · e-mail neuveden · Kontaktní osoba: Petra Horká (dcera), tel. +420 777 000 542",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "e-mail pacientky neuveden"
+        }
+      ]
+    },
+    {
+      "id": "diagnosis",
+      "title": "Diagnóza",
+      "text": "C25.0 – suspektní tumor hlavy pankreatu, cholestatický syndrom (histologicky neověřeno)",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "epicrisis",
+      "title": "Epikríza",
+      "text": "Od poloviny srpna 2026 bolesti v epigastriu a pravém podžebří, na přelomu srpna a září teploty se zimnicí a tmavší moč. 1. 9. febrilní (38,1 °C) se subikterem, léčena ciprofloxacinem 7 dní, poté afebrilní. Pro přetrvávající cholestázu GE 15. 9., UZ 29. 9.: ložisko hlavy pankreatu suspektní z malignity. CT se v dostupných pracovištích nepodařilo zajistit.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "mdt-question",
+      "title": "Požadavek / otázka na MDT",
+      "text": "Převzetí do péče KOC k dokončení diagnostiky (CT břicha, histologická verifikace) a stanovení dalšího postupu v rámci MDT. Urgentní – progrese obtíží, nezajištěný termín CT. Konkrétní otázka na MDT neuvedena.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "konkrétní otázka na MDT neuvedena"
+        }
+      ]
+    },
+    {
+      "id": "comorbidities",
+      "title": "Komorbidity (OA)",
+      "text": "Paroxysmální fibrilace síní od r. 2021 na antikoagulaci (kardiolog MUDr. Petr Malý, Jesenice), arteriální hypertenze, hypercholesterolémie, st. p. hysterektomii pro myomy (2010), 2019 po úmrtí manžela přechodně depresivní ladění, neléčena",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "medication",
+      "title": "Léková anamnéza (FA)",
+      "mono": true,
+      "text": "apixaban 5 mg 1-0-1 · bisoprolol 5 mg 1-0-0 · perindopril 4 mg 1-0-0 · rosuvastatin 10 mg 0-0-1 · paracetamol 500 mg při bolesti max. 4× denně",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "note",
+          "text": "antikoagulace – před invazivními výkony vysadit dle kardiologa"
+        }
+      ]
+    },
+    {
+      "id": "allergies",
+      "title": "Alergie (AA)",
+      "text": "neguje",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "performance",
+      "title": "Stav výkonnosti (PS / Karnofsky)",
+      "text": "Neuvedeno. Slovně: soběstačná, t. č. v pracovní neschopnosti.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "ECOG / Karnofsky neuveden"
+        }
+      ]
+    },
+    {
+      "id": "body",
+      "title": "Váha a výška",
+      "text": "Neuvedeno (pokračující úbytek hmotnosti).",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "váha a výška neuvedeny"
+        }
+      ]
+    },
+    {
+      "id": "symptoms",
+      "title": "Symptomy a jejich počátek",
+      "text": "Od poloviny srpna 2026 bolesti v epigastriu (nyní s propagací do zad, horší po jídle a v noci, paracetamol jen částečně), přelom srpna/září teploty se zimnicí, tmavší moč; nechutenství, pokračující úbytek hmotnosti; výrazná úzkost, špatně spí.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "exams",
+      "title": "Provedená vyšetření",
+      "text": "Laboratoř 1. 9. 2026 (LabJih) · RTG plic 3. 9. 2026 (Radiologické centrum Modřany) · gastroenterologie 15. 9. 2026 (MUDr. Ivana Křížová, Poliklinika Jižní) · UZ břicha 29. 9. 2026 (RDG Poliklinika Jižní) · kardiologie 20. 7. 2026 (MUDr. Petr Malý). Výsledky nepřiloženy – k dispozici na jednotlivých pracovištích.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "výsledky v plném znění nepřiloženy (5 zpráv) – vyžádat"
+        }
+      ]
+    },
+    {
+      "id": "labs",
+      "title": "Laboratoř vč. nádorových markerů",
+      "text": "Nepřiloženo (odběr 1. 9. 2026, LabJih). Nádorové markery neprovedeny.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "výsledky laboratoře nepřiloženy, markery chybí"
+        }
+      ]
+    },
+    {
+      "id": "histology",
+      "title": "Histologie",
+      "text": "Dosud neprovedena.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    },
+    {
+      "id": "other",
+      "title": "Jiná důležitá sdělení, přání pacienta",
+      "text": "Pacientka je o podezření na nádorové onemocnění informována a souhlasí se sdílením informací s dcerou. Vdova, žije sama, dcera bydlí v téže obci. Pro výraznou úzkost PL žádá zvážit psychologickou podporu.",
+      "source": "07 Žádost PL o převzetí do KOC, 2. 10. 2026"
+    }
+  ],
+  "originals": [
+    "07_PL_zadost_KOC2_2026-10-02.docx"
+  ]
+}

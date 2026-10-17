@@ -1,0 +1,44 @@
+{
+  "pathway": "data/dx-pathway-pancreas.json",
+  "note": "How the Procházková competition case is read onto the ČOS pancreatic diagnostic pathway. Rule-based, no AI. Facts only from the reports (no guessing): jaundice is not stated (subicterus only), so it is left open.",
+  "tasks": {
+    "intake": ["triage"],
+    "records": ["prior_reports"],
+    "ct": ["ct_pancreas"],
+    "anticoag": ["anticoag"],
+    "eus": ["eus_fnb"],
+    "labs": ["bloods", "ca19_9"],
+    "histology": ["histology"],
+    "pain": ["pain"],
+    "psycho": ["psycho"]
+  },
+  "handover": {
+    "prior_reports": "EF LK 60",
+    "ca19_9": "CA 19-9 \\d"
+  },
+  "values": {
+    "ecog": { "node": "performance_status", "fact": "ecog" }
+  },
+  "facts": {
+    "cholestasis": true,
+    "on_anticoagulant": true,
+    "tumour_size_mm": 34
+  },
+  "factSources": {
+    "cholestasis": "Laboratoř LabJih 1. 9.: bilirubin 38 µmol/l, GGT 4,20, ALP 3,10 µkat/l",
+    "on_anticoagulant": "Žádost PL 2. 10.: apixaban 5 mg 1-0-1",
+    "tumour_size_mm": "UZ břicha 29. 9.: ložisko hlavy pankreatu 34 × 30 mm"
+  },
+  "decisions": {
+    "resectability": {
+      "from": "diagnosis",
+      "match": [
+        ["hraničně resekabil", "borderline"],
+        ["lokálně pokročil", "locally_advanced"],
+        ["metasta", "metastatic"],
+        ["resekabil", "resectable"]
+      ]
+    }
+  },
+  "mdtNode": "mdt"
+}

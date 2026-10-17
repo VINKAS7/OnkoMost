@@ -1,0 +1,53 @@
+{
+  "diagnosis": "C25.0 duktální adenokarcinom hlavy pankreatu G2–G3 s perineurální invazí, hraničně resekabilní, cM0",
+  "mdt": [
+    {
+      "id": "mdt1",
+      "title": "MDT GIT",
+      "date": "2026-10-21",
+      "decision": true,
+      "conclusion": "Histologicky potvrzený duktální adenokarcinom hlavy pankreatu G2–G3; kontakt s VMS asi 200° se zúžením lumen a s AMS do 150°, suspektní regionální uzlina, bez vzdálených metastáz. Hraničně resekabilní nález → neoadjuvantní systémová chemoterapie, poté restaging a znovuposouzení resekce v MDT.",
+      "timelineLabel": "MDT GIT – rozhodnutí",
+      "available": [
+        "history",
+        "imaging-us",
+        "labs",
+        "comorbidities",
+        "ct",
+        "histology",
+        "markers"
+      ]
+    }
+  ],
+  "treatment": {
+    "start": "2026-11-04",
+    "label": "4. 11. onkologické konzilium (neoadjuvance)",
+    "plan": "Neoadjuvantní chemoterapie – onkologické konzilium 4. 11. 2026 10:30 (MUDr. Kalous). Před léčbou stanovit ECOG, KO, jaterní a renální parametry, ionty, CA 19-9; zhodnotit cholestázu a potřebu biliární drenáže. Nutriční a analgetická péče, psychoonkologická podpora. Apixaban před výkony individuálně s provádějícím lékařem, samostatně nevysazovat. Po neoadjuvanci CT a CA 19-9, nové MDT k resekabilitě."
+  },
+  "record": {
+    "schema": "MDT_zapis (Rakathon 2026)",
+    "board": "Multidisciplinární tým pro nádory GIT, KOC Nemocnice Lipová",
+    "presenter": "MUDr. Martin Svoboda, Interní gastroenterologická klinika",
+    "chair": "doc. MUDr. Pavel Hrubý, Ph.D.",
+    "members": [
+      "doc. MUDr. Pavel Hrubý, Ph.D. – chirurg, HPB chirurgie (předsedající)",
+      "MUDr. Lenka Marková – klinická onkologie",
+      "MUDr. Ondřej Kalous – radiační onkologie",
+      "MUDr. Martin Svoboda – gastroenterologie",
+      "MUDr. Eva Šimková – radiologie",
+      "MUDr. Radek Pokorný, Ph.D. – patologie",
+      "Bc. Lucie Dvořáková – koordinátorka KOC"
+    ],
+    "icd10": "C25.0",
+    "recommendations": [
+      "Neoadjuvantní chemoterapie: onkologické konzilium 4. 11. 2026 10:30, MUDr. Kalous.",
+      "Před zahájením léčby: stanovit ECOG, doplnit KO, jaterní a renální parametry, ionty a CA 19-9; zhodnotit cholestázu a potřebu zajištění průchodnosti žlučových cest (GE, případně ERCP). Biliární drenáž není doložena.",
+      "Po neoadjuvanci: kontrolní CT hrudníku a břicha (pankreatický protokol), CA 19-9 a nové MDT k resekabilitě (pankreatoduodenektomie s možností cévní rekonstrukce).",
+      "Nutriční intervence, zhodnocení bolesti a úprava analgezie, psychoonkologická podpora.",
+      "Kardiologická a medikační koordinace: postup s apixabanem před výkony individuálně s provádějícím lékařem; léčbu samostatně nevysazovat.",
+      "Koordinátorka KOC: objednat onkologii a návazná vyšetření, informovat pacientku, po jejím souhlasu i dceru Petru Horkou."
+    ],
+    "copyTo": "MUDr. Tomáš Řezníček, praktický lékař, Na Návsi 3, 252 41 Dolní Břežany"
+  },
+  "source": "Zápis z MDT GIT 21. 10. 2026"
+}

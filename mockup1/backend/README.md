@@ -7,6 +7,7 @@ each quote against the document text. Nothing is written to the case until the d
 
 ```bash
 cd mockup1
+scripts/setup.sh && scripts/start.sh                                        # the short way; or step by step:
 python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt   # or: scripts/setup.sh
 echo "<api key>" > einfracz.key                                             # gitignored (*.key), never served
 .venv/bin/uvicorn backend.app:app --port 8000                                # open http://localhost:8000/#/gp

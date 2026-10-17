@@ -31,12 +31,12 @@ class MdtUpload extends KocElement {
 
     if (c.phase === 'closed') {
       return html`<section class="card" aria-labelledby="mu-h">${head(html`<span class="pill ok">${icon('check')}uzavřeno</span>`)}
-        <p class="banner ok">${icon('check')}Předání potvrzeno PL ${fmtDate(c.timeline.ack)} · případ uzavřen · revizní lékař informován automaticky.</p>
-        <p style="margin-top:12px"><a class="btn" href="#/revizni">Pohled revizního lékaře ${icon('arrow')}</a></p></section>`;
+        <p class="banner ok">${icon('check')}Doručení potvrzeno PL ${fmtDate(c.timeline.ack)} · případ uzavřen${c.patient.insurer === '111' ? ' · revizní lékař informován automaticky' : ''}.</p>
+        ${c.patient.insurer === '111' ? html`<p style="margin-top:12px"><a class="btn" href="#/revizni">Pohled revizního lékaře ${icon('arrow')}</a></p>` : ''}</section>`;
     }
     if (c.phase === 'closed-pending-ack') {
       return html`<section class="card" aria-labelledby="mu-h">${head(html`<span class="pill warn">čeká na potvrzení</span>`)}
-        <p class="banner warn">${icon('clock')}Závěr odeslán ${fmtDate(c.sentAt)} ${c.serviceRequest.requesterDat} a reviznímu lékaři VZP · čeká se na potvrzení příjmu.</p>
+        <p class="banner warn">${icon('clock')}Závěr odeslán ${fmtDate(c.sentAt)} ${c.serviceRequest.requesterDat}${c.patient.insurer === '111' ? ' a reviznímu lékaři VZP' : ''} · čeká se na potvrzení příjmu.</p>
         <p style="margin-top:12px"><button class="btn" type="button" data-action="sim-ack">Simulovat potvrzení PL</button></p></section>`;
     }
 
@@ -48,8 +48,9 @@ class MdtUpload extends KocElement {
     }
     if (!CASES[this.caseId].mdtReport) {
       return html`<section class="card" aria-labelledby="mu-h">${head()}
-        <p class="empty">Ukázková zpráva z MDT a její strukturování jsou v demu připravené jen pro pana Nováka.</p></section>`;
+        <p class="empty">Ukázková zpráva z MDT a její strukturování nejsou pro tuto pacientku v demu připravené.</p></section>`;
     }
+    const reviewer = c.patient.insurer === '111';
     return html`<section class="card" aria-labelledby="mu-h">${head(s.fields ? html`<span class="pill ai">${icon('spark')}AI návrh</span>` : '')}
       <div class="file-row">
         <div><label for="mdt-file">Zpráva z MDT (PDF, DOCX, TXT)</label><input id="mdt-file" type="file" accept=".pdf,.doc,.docx,.txt" data-action="file" data-key="file"></div>
@@ -60,11 +61,11 @@ class MdtUpload extends KocElement {
       ${s.loading ? html`<div class="skeleton" style="margin-top:12px" aria-live="polite"><span></span><span style="width:70%"></span><span></span></div>` : ''}
       ${s.fields ? html`<div class="fields">
         <p class="banner ai">${icon('spark')}Návrh strukturovaného závěru (model ${s.result.model}, ${s.result.latencyMs} ms) · zkontrolujte a upravte před odesláním.</p>
-        ${[['diagnosis', 'Diagnóza', 2], ['mdt1', `Závěr 1. MDT (${fmtDate(s.result.data.mdt[0].date)})`, 2], ['mdt2', `Závěr 2. MDT (${fmtDate(s.result.data.mdt[1].date)})`, 2], ['plan', 'Plán léčby', 3]]
+        ${[['diagnosis', 'Diagnóza', 2], ...s.result.data.mdt.map((m, i) => [`mdt${i}`, `Závěr ${m.title} (${fmtDate(m.date)})`, 3]), ['plan', 'Plán léčby / doporučení', 4]]
           .map(([k, label, rows]) => html`<div><label for="f-${k}">${label}</label><textarea id="f-${k}" data-field="${k}" data-key="f-${k}" rows="${rows}">${s.fields[k]}</textarea></div>`)}
         <p class="source">Zdroj: ${s.file}</p>
         <label class="check"><input type="checkbox" data-action="ack" data-key="ack" ${s.ack ? 'checked' : ''}><span>Zkontrolovala jsem strukturovaný závěr a odpovídá zprávě z MDT.</span></label>
-        <div class="actions"><button class="btn primary" type="button" data-action="send" data-key="send" ${s.ack ? '' : 'disabled'}>${icon('send')}Odeslat referujícímu a reviznímu lékaři</button></div>
+        <div class="actions"><button class="btn primary" type="button" data-action="send" data-key="send" ${s.ack ? '' : 'disabled'}>${icon('send')}Odeslat referujícímu${reviewer ? ' a reviznímu' : ''} lékaři</button></div>
       </div>` : ''}
     </section>`;
   }
@@ -73,15 +74,16 @@ class MdtUpload extends KocElement {
     const s = this.s;
     s.loading = true;
     this.update();
-    const r = await completeJSON({ task: 'structure-mdt', messages: [{ role: 'user', content: `Strukturuj závěr ze zprávy: ${s.file}` }] });
+    const r = await completeJSON({ task: 'structure-mdt', messages: [{ role: 'user', content: JSON.stringify({ caseId: this.caseId, file: s.file }) }] });
     s.loading = false;
     s.result = r;
-    s.fields = { diagnosis: r.data.diagnosis, mdt1: r.data.mdt[0].conclusion, mdt2: r.data.mdt[1].conclusion, plan: r.data.treatment.plan };
+    s.fields = { diagnosis: r.data.diagnosis, plan: r.data.treatment.plan };
+    r.data.mdt.forEach((m, i) => { s.fields[`mdt${i}`] = m.conclusion; });
     this.update();
   }
 
   onClick(e, el, action) {
-    if (action === 'sample') { this.s.file = 'Zprava_MDT_HPB_Novak.pdf (ukázka)'; this.update(); }
+    if (action === 'sample') { this.s.file = `${CASES[this.caseId].mdtDoc || 'Zprava_MDT_HPB_Novak.pdf'} (ukázka)`; this.update(); }
     if (action === 'structure') this.structure();
     if (action === 'sim-ack') acknowledgeCase(this.caseId);
     if (action === 'send' && this.s.ack) {
@@ -89,8 +91,7 @@ class MdtUpload extends KocElement {
       const f = this.s.fields;
       const structured = structuredClone(data);
       structured.diagnosis = f.diagnosis;
-      structured.mdt[0].conclusion = f.mdt1;
-      structured.mdt[1].conclusion = f.mdt2;
+      structured.mdt.forEach((m, i) => { m.conclusion = f[`mdt${i}`]; });
       structured.treatment.plan = f.plan;
       structured.source = this.s.file;
       this.s = { file: null, loading: false, result: null, fields: null, ack: false };

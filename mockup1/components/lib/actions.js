@@ -2,7 +2,7 @@
 import { updateCase, getCase, getStoredCase, templateFor } from './store.js';
 import { CASES } from './cases.js';
 import { computeMissing, openItems } from './derive.js';
-import { applyTemplate, applyMdtConclusion, acknowledge, GP_NAME, COORDINATOR_NAME, REVIEWER_NAME } from './seed.js';
+import { applyTemplate, applyMdtConclusion, acknowledge, GP_NAME, COORDINATOR_NAME, REVIEWER_NAME, SEND_AT, ACK_AT } from './seed.js';
 import { nowStamp, demoDate, dateOnly, maxDate, currentScreen, fmtDate } from './dates.js';
 import { toast } from './toast.js';
 
@@ -60,13 +60,21 @@ export function setEcog(id, value) {
   });
 }
 
-/** Doctor confirms an AI finding from an uploaded document: the pathway step counts as documented. */
-export function acceptDocFinding(id, f) {
+/**
+ * Doctor (GP screen) or coordinator confirms an AI finding from an uploaded document: the pathway step counts
+ * as documented.
+ */
+export function acceptDocFinding(id, f, byCoordinator = false) {
+  const screen = byCoordinator ? 'koordinator' : 'gp';
+  const by = byCoordinator ? coordinatorOf(id) : GP_NAME;
   updateCase(id, (c) => {
-    c.docFindings = { ...(c.docFindings || {}), [f.step]: { ...f, confirmedBy: GP_NAME, at: nowStamp('gp') } };
-    if (f.facts?.ecog != null && !c.values.ecog) c.values.ecog = { value: f.facts.ecog, at: demoDate('gp'), by: GP_NAME, source: f.file };
+    c.docFindings = { ...(c.docFindings || {}), [f.step]: { ...f, confirmedBy: by, at: nowStamp(screen, id) } };
+    if (f.facts?.ecog != null && !c.values.ecog) c.values.ecog = { value: f.facts.ecog, at: demoDate(screen, id), by, source: f.file };
   });
 }
+
+/** Coordinator of a case's KOC (cases.js), default Bc. Petra Malá (KOC VFN). */
+export const coordinatorOf = (id) => CASES[id]?.coordinator?.name || COORDINATOR_NAME;
 
 export function removeDocFinding(id, step) {
   updateCase(id, (c) => {
@@ -91,13 +99,13 @@ export function takeOver(id) {
   updateCase(id, (c) => {
     applyTemplate(c, tpl);
     c.phase = 'active';
-    c.takenOverAt = nowStamp('koordinator');
+    c.takenOverAt = nowStamp('koordinator', id);
     const ecogOpen = openItems(computeMissing(c, tpl, 'koordinator')).some((m) => m.id === 'ecog');
     if (ecogOpen) {
-      c.messages.push({ id: uid(), from: 'Koordinátor', to: c.serviceRequest.requester, channel: 'app', at: nowStamp('koordinator'),
+      c.messages.push({ id: uid(), from: 'Koordinátor', to: c.serviceRequest.requester, channel: 'app', at: nowStamp('koordinator', id),
         text: `Dobrý den, prosím o doplnění ECOG ${c.patient.refGen}.`, requests: 'ecog' });
     }
-    c.messages.push({ id: uid(), from: 'Koordinátor', to: 'pacient', channel: 'sms', at: nowStamp('koordinator'),
+    c.messages.push({ id: uid(), from: 'Koordinátor', to: 'pacient', channel: 'sms', at: nowStamp('koordinator', id),
       text: CASES[id].takeoverSms });
   });
   toast(`Případ převzat · sada „${tpl.title}“ spuštěna (${tpl.tasks.length} úkolů)`);
@@ -117,7 +125,7 @@ export function completeTask(id, taskId) {
   updateCase(id, (x) => {
     const t = x.tasks.find((y) => y.id === taskId);
     t.status = 'done';
-    t.doneAt = maxDate(dateOnly(t.due), demoDate());
+    t.doneAt = maxDate(dateOnly(t.due), demoDate(undefined, id));
     for (const other of x.tasks) {
       if (other.status === 'todo' && !pendingDeps(x, other).length) other.status = 'running';
     }
@@ -133,7 +141,7 @@ export function addTask(id, { title, owner, due }) {
 }
 
 export function sendMessage(id, msg) {
-  updateCase(id, (c) => { c.messages.push({ id: uid(), at: nowStamp(), channel: 'app', ...msg }); });
+  updateCase(id, (c) => { c.messages.push({ id: uid(), at: nowStamp(undefined, id), channel: 'app', ...msg }); });
 }
 
 export function remindEcog(id) {
@@ -147,14 +155,19 @@ export function remindEcog(id) {
 let ackTimer = null;
 
 export function sendMdtConclusion(id, structured, model) {
-  updateCase(id, (c) => applyMdtConclusion(c, structured, { verifiedBy: COORDINATOR_NAME, model }));
-  toast('Závěr MDT odeslán referujícímu a reviznímu lékaři (demo: přeskok na 27. 1.)');
+  const cfg = CASES[id];
+  const at = cfg.sendAt || SEND_AT;
+  const c = updateCase(id, (x) => applyMdtConclusion(x, structured, { verifiedBy: coordinatorOf(id), model, at }));
+  const reviewer = c.patient.insurer === '111';
+  toast(`Závěr MDT odeslán referujícímu${reviewer ? ' a reviznímu' : ''} lékaři${at.slice(0, 10) !== demoDate(undefined, id) ? ` (demo: přeskok na ${fmtDate(at, { time: false })})` : ''}`);
   clearTimeout(ackTimer);
-  // Simulated GP acknowledgement.
+  // Simulated GP acknowledgement (delivery confirmation).
   ackTimer = setTimeout(() => {
     if (getStoredCase(id)?.phase === 'closed-pending-ack') {
       acknowledgeCase(id);
-      toast('MUDr. Dvořáková potvrdila převzetí 27. 1. 09:14 · případ uzavřen', { href: '#/revizni', linkText: 'Pohled revizního lékaře' });
+      const ack = cfg.ackAt || ACK_AT;
+      toast(`${c.serviceRequest.requester} potvrdil(a) převzetí ${fmtDate(ack)} · případ uzavřen`,
+        reviewer ? { href: '#/revizni', linkText: 'Pohled revizního lékaře' } : undefined);
     }
   }, 4000);
 }
@@ -163,7 +176,7 @@ export function acknowledgeCase(id) {
   clearTimeout(ackTimer);
   updateCase(id, (c) => {
     if (c.phase !== 'closed-pending-ack') return false;
-    acknowledge(c);
+    acknowledge(c, CASES[id].ackAt);
   }, { base: 'stored' });
 }
 

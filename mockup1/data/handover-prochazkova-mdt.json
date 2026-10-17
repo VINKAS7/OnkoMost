@@ -1,0 +1,155 @@
+{
+  "template": "pancreas-koc2",
+  "templateLabel": "karcinom pankreatu – KOC Lipová",
+  "schema": "Handover_obsah (Rakathon 2026)",
+  "asOf": "2026-10-21",
+  "sections": [
+    {
+      "id": "identity",
+      "title": "Nacionále",
+      "text": "Alena Procházková · 63 let (nar. 22. 7. 1963) · žena · RČ 635722/1013 · zdravotní pojišťovna 211",
+      "source": "07 Žádost PL 2. 10. · 01 Kardiologie Jesenice 20. 7."
+    },
+    {
+      "id": "contacts",
+      "title": "Kontakty",
+      "text": "Pacientka: tel. +420 777 000 541, Za Školou 17, 252 41 Dolní Břežany · e-mail neuveden · Kontaktní osoba: Petra Horká (dcera), tel. +420 777 000 542 – pacientka souhlasí se sdílením informací",
+      "source": "07 Žádost PL 2. 10. · 04 Epikríza PL 4. 9.",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "e-mail pacientky neuveden v žádné zprávě"
+        }
+      ]
+    },
+    {
+      "id": "diagnosis",
+      "title": "Diagnóza",
+      "text": "C25.0 – duktální adenokarcinom hlavy pankreatu, G2–G3, s perineurální invazí (histologie 19. 10. 2026); CT bez vzdálených metastáz",
+      "source": "11 Histologie KOC 2 19. 10. · 08 CT KOC 1 8. 10."
+    },
+    {
+      "id": "epicrisis",
+      "title": "Epikríza",
+      "text": "63letá pacientka, od poloviny srpna 2026 bolesti v epigastriu, teploty a tmavá moč, 1. 9. cholestáza a zánětlivá aktivita (léčena ciprofloxacinem). UZ 29. 9.: ložisko hlavy pankreatu 34 × 30 mm. CT 8. 10. (KOC 1): tumor 35 × 31 mm, kontakt s VMS asi 200° se zúžením, s AMS do 150°, suspektní peripankreatická uzlina, bez metastáz. EUS-FNB 12. 10., histologie: duktální adenokarcinom G2–G3.",
+      "source": "04 Epikríza PL 4. 9. · 05 Gastroenterologie 15. 9. · 06 UZ břicha 29. 9. · 08 CT KOC 1 8. 10. · 09 EUS-FNB KOC 2 12. 10. · 11 Histologie KOC 2 19. 10."
+    },
+    {
+      "id": "mdt-question",
+      "title": "Požadavek / otázka na MDT",
+      "text": "Z žádosti PL: dokončení diagnostiky a stanovení dalšího postupu v rámci MDT. Konkrétní otázka na MDT neuvedena; PL o doplnění požádán 2. 10., bez odpovědi.",
+      "source": "07 Žádost PL 2. 10.",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "konkrétní otázka na MDT neuvedena"
+        }
+      ]
+    },
+    {
+      "id": "comorbidities",
+      "title": "Komorbidity (OA)",
+      "text": "I48.0 paroxysmální fibrilace síní (CHA₂DS₂-VASc 2, HAS-BLED 1) na antikoagulaci, I10 arteriální hypertenze, E78.0 hypercholesterolémie; echo 20. 7.: EF LK 60 %. St. p. hysterektomii (2010), 2019 přechodně depresivní ladění, neléčena.",
+      "source": "01 Kardiologie Jesenice 20. 7. · 07 Žádost PL 2. 10."
+    },
+    {
+      "id": "medication",
+      "title": "Léková anamnéza (FA)",
+      "mono": true,
+      "text": "apixaban 5 mg 1-0-1 · bisoprolol 5 mg 1-0-0 · perindopril 4 mg 1-0-0 · rosuvastatin 10 mg 0-0-1 · paracetamol 500 mg při bolesti max. 4× denně",
+      "source": "01 Kardiologie Jesenice 20. 7. · 07 Žádost PL 2. 10.",
+      "flags": [
+        {
+          "kind": "conflict",
+          "text": "apixaban: EUS 12. 10. uvádí „vysazen 48 h před výkonem (poslední dávka 18. 10.)“ – datum je po výkonu; obnovení „od 21. 10.“ ověřit u gastroenterologa"
+        }
+      ]
+    },
+    {
+      "id": "allergies",
+      "title": "Alergie (AA)",
+      "text": "neguje",
+      "source": "04 Epikríza PL 4. 9. · 07 Žádost PL 2. 10."
+    },
+    {
+      "id": "performance",
+      "title": "Stav výkonnosti (PS / Karnofsky)",
+      "text": "Neuvedeno v žádné zprávě. Slovně: soběstačná (žádost PL 2. 10.); zátěž 2 patra bez zastavení (kardiologie 20. 7.).",
+      "source": "07 Žádost PL 2. 10. · 01 Kardiologie Jesenice 20. 7.",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "ECOG / Karnofsky neuveden – vyžádáno od PL 2. 10. a 19. 10."
+        }
+      ]
+    },
+    {
+      "id": "body",
+      "title": "Váha a výška",
+      "text": "Výška 165 cm · hmotnost 69 kg (20. 7. 2026) → 65 kg (15. 9. 2026), úbytek 4 kg za měsíc. Aktuální hmotnost k MDT neuvedena.",
+      "source": "01 Kardiologie Jesenice 20. 7. · 05 Gastroenterologie 15. 9.",
+      "flags": [
+        {
+          "kind": "missing",
+          "text": "aktuální hmotnost neuvedena (poslední 15. 9.)"
+        }
+      ]
+    },
+    {
+      "id": "symptoms",
+      "title": "Symptomy a jejich počátek",
+      "text": "Od poloviny srpna 2026 bolesti v epigastriu a pravém podžebří, později s propagací do zad, horší po jídle a v noci; přelom srpna/září teploty se zimnicí, tmavší moč, občas světlejší stolice; nechutenství, úbytek hmotnosti; výrazná úzkost, špatně spí.",
+      "source": "04 Epikríza PL 4. 9. · 05 Gastroenterologie 15. 9. · 07 Žádost PL 2. 10."
+    },
+    {
+      "id": "exams",
+      "title": "Provedená vyšetření",
+      "text": "20. 7. kardiologie, Kardiologická ambulance Jesenice: stabilní, sinusový rytmus, EF LK 60 %; apixaban vysadit 48 h před výkonem s vysokým rizikem krvácení.\n3. 9. RTG hrudníku, RC Modřany: bez zánětlivých změn plic.\n15. 9. gastroenterologie, Poliklinika Jižní: cholestatický syndrom, bolesti propagující do zad, úbytek 4 kg; DD choledocholitiáza, stenóza žlučových cest, tumor pankreatu.\n29. 9. UZ břicha, Poliklinika Jižní: hypoechogenní ložisko hlavy pankreatu 34 × 30 mm, DHC 10 mm, intrahepatální žlučovody lehce dilatovány, bez volné tekutiny.\n8. 10. CT břicha a hrudníku s k. l., pankreatický protokol, KOC Nemocnice Severní: ložisko 35 × 31 mm, VMS obkružena asi 200° se zúžením lumen v délce 18 mm, kontakt s AMS do 150° bez zúžení, a. gastroduodenalis v kontaktu, DHC 11 mm, suspektní peripankreatická uzlina 12 × 9 mm, játra bez ložisek, bez ascitu, hrudník bez ložisek.\n12. 10. EUS-FNB, KOC Nemocnice Lipová: ložisko 33 × 29 mm, 3 průchody jehlou 22G, bez komplikací.",
+      "source": "01 Kardiologie Jesenice 20. 7. · 03 RTG plic 3. 9. · 05 Gastroenterologie 15. 9. · 06 UZ břicha 29. 9. · 08 CT KOC 1 8. 10. · 09 EUS-FNB KOC 2 12. 10."
+    },
+    {
+      "id": "labs",
+      "title": "Laboratoř vč. nádorových markerů",
+      "mono": true,
+      "text": "1. 9. (LabJih): leu 12,8 · CRP 86 · bilirubin 38 · ALT 1,92 · AST 1,45 · GGT 4,20 · ALP 3,10 · moč bilirubin ++, kultivace E. coli 10⁴ CFU/ml\n15. 10. (KOC 2): Hb 118 · leu 8,9 · bilirubin 23 · ALT 1,62 · AST 1,20 · GGT 5,00 · ALP 3,40 · albumin 36 · CRP 18 · kreatinin 74 · CA 19-9 312 kU/l · CEA 4,1 · CA 125 48",
+      "source": "02 LabJih 1. 9. · 10 Laboratoř KOC 2 15. 10."
+    },
+    {
+      "id": "histology",
+      "title": "Histologie",
+      "text": "B-2026/15921 (vydáno 19. 10. 2026): duktální adenokarcinom pankreatu G2–G3 s perineurální invazí, CK7+, CK19+, CK20−, CDX2−, SMAD4 zachován, MKN-O 8500/3.",
+      "source": "11 Histologie KOC 2 19. 10.",
+      "flags": [
+        {
+          "kind": "conflict",
+          "text": "materiál „odběr 20. 10. 2026“ je po datu vydání 19. 10. i po výkonu 12. 10. – ověřit u patologie"
+        }
+      ]
+    },
+    {
+      "id": "other",
+      "title": "Jiná důležitá sdělení, přání pacienta",
+      "text": "Pacientka je informována o podezření na nádorové onemocnění a souhlasí se sdílením informací s dcerou Petrou Horkou. Vdova, žije sama, dcera v téže obci. Výrazná úzkost – PL žádá psychologickou podporu (psycholog a algeziolog objednáni, zprávy budou až po MDT). Biliární drenáž v dostupných zprávách nedoložena.",
+      "source": "07 Žádost PL 2. 10. · 04 Epikríza PL 4. 9.",
+      "flags": [
+        {
+          "kind": "note",
+          "text": "zprávy 12 (algeziologie 26. 10.) a 13 (psychologie 27. 10.) vznikly po MDT – do podkladu nezahrnuty"
+        }
+      ]
+    }
+  ],
+  "originals": [
+    "01_Kardiologie_2026-07-20.docx",
+    "02_Laborator_2026-09-01.docx",
+    "03_RTG_plic_2026-09-03.docx",
+    "04_PL_epikriza_2026-09-04.docx",
+    "05_Gastroenterologie_2026-09-15.docx",
+    "06_UZ_bricha_2026-09-29.docx",
+    "07_PL_zadost_KOC2_2026-10-02.docx",
+    "08_CT_KOC1_2026-10-08.docx",
+    "09_Biopsie_vykon_KOC2_2026-10-12.docx",
+    "10_Laborator_KOC2_2026-10-15.docx",
+    "11_Histologie_KOC2_2026-10-19.docx"
+  ]
+}

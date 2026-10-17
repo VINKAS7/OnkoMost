@@ -16,7 +16,7 @@ const STATE = {
 export function liveEntry(base) {
   const c = getCase(base.id, 'koordinator');
   const tpl = templateFor(c);
-  const today = demoDate('koordinator');
+  const today = demoDate('koordinator', base.id);
   const e = { ...base };
   if (c.phase === 'submitted') {
     Object.assign(e, { state: 'new', context: `od ${fmtDate(c.submittedAt)} · ${c.serviceRequest.requester}`, nextStep: 'převzít a spustit sadu',
@@ -24,7 +24,7 @@ export function liveEntry(base) {
   } else if (c.phase === 'closed-pending-ack' || c.phase === 'closed') {
     const done = c.phase === 'closed';
     Object.assign(e, { state: done ? 'closed' : 'pending', context: c.diagnosis || '', nextStep: done ? 'žádný · případ uzavřen' : 'potvrzení příjmu',
-      due: '2026-01-27', dueLabel: done ? `potvrzeno ${fmtDate(c.timeline.ack)}` : '27. 1.', owner: done ? 'nikdo' : c.serviceRequest.requester, missing: 0 });
+      due: dateOnly(c.sentAt || today), dueLabel: done ? `potvrzeno ${fmtDate(c.timeline.ack)}` : fmtDate(c.sentAt || today, { time: false }), owner: done ? 'nikdo' : c.serviceRequest.requester, missing: 0 });
   } else {
     const t = nextTask(c);
     const missing = openItems(computeMissing(c, tpl, 'koordinator')).length;
@@ -122,7 +122,7 @@ class CaseQueue extends KocElement {
     if (action === 'filter') { this.filter = el.dataset.f; this.update(); }
     if (action === 'select') {
       const live = getData().queue.cases.find((c) => c.id === el.dataset.id)?.live;
-      if (!live) toast('Detail je v demu k dispozici jen pro pana Nováka a paní Veselou.');
+      if (!live) toast('Detail je v demu k dispozici jen pro pana Nováka, paní Veselou a paní Procházkovou.');
       else setSelected('koordinator', el.dataset.id);
     }
     if (action === 'takeover') { setSelected('koordinator', el.dataset.id); takeOver(el.dataset.id); }

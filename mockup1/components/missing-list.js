@@ -87,8 +87,8 @@ class MissingList extends KocElement {
       }
       if (m.id === 'ecog') {
         if (!firstReq) return 'nevyžádáno';
-        const wait = Math.max(0, daysBetween(firstReq.at, demoDate(screen)));
-        return `vyžádáno od ${c.serviceRequest.requesterDat} ${fmtDate(firstReq.at, { time: false })} · bez odpovědi ${days(wait)}${lastReminder ? ` · připomenuto ${fmtDate(lastReminder.at)}` : ''}`;
+        const wait = Math.max(0, daysBetween(firstReq.at, demoDate(screen, c.id)));
+        return `vyžádáno od ${c.serviceRequest.requesterGen || c.serviceRequest.requesterDat} ${fmtDate(firstReq.at, { time: false })} · bez odpovědi ${days(wait)}${lastReminder ? ` · připomenuto ${fmtDate(lastReminder.at)}` : ''}`;
       }
       return '';
     };

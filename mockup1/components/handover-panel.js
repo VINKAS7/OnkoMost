@@ -6,6 +6,8 @@ import { setHandoverDraft, editHandoverSection } from './lib/actions.js';
 import { completeJSON } from './lib/llm.js';
 import { fmtDate } from './lib/dates.js';
 
+const FLAG = { missing: 'chybí', conflict: 'nesoulad', note: 'pozn.' };
+
 // Structured handover. Full (GP, editable) or compact (coordinator) mode.
 class HandoverPanel extends KocElement {
   static styles = `
@@ -23,6 +25,14 @@ class HandoverPanel extends KocElement {
     .prov { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
     .compact li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
     .compact li:first-child { border-top: 0; }
+    .compact li > span:first-child { min-width: 0; display: grid; gap: 3px; }
+    .flags { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+    .flag { display: flex; gap: 6px; align-items: baseline; overflow-wrap: anywhere; }
+    .flag b { font-weight: 600; flex: none; }
+    .flag.missing b { color: var(--miss); }
+    .flag.conflict b { color: var(--warn); }
+    .flag.note b { color: var(--muted); }
+    .flagsum { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
     .originals { margin-top: 10px; font-size: 13px; color: var(--muted); }
     .loading { display: grid; gap: 10px; }
   `;
@@ -82,11 +92,26 @@ class HandoverPanel extends KocElement {
               <div class="edit-actions"><button class="btn sm" type="button" data-action="cancel">Zrušit</button><button class="btn sm primary" type="button" data-action="save" data-id="${s.id}">Uložit úpravu</button></div>`
             : html`<p class="text ${s.mono ? 'mono' : ''}" ${editable ? html`role="button" tabindex="0" data-action="edit" data-id="${s.id}" data-key="txt-${s.id}" aria-label="${s.title}: ${s.text}. Upravit text"` : ''}>${s.text}</p>`}
             <p class="source">Zdroj: ${s.source}${s.editedBy ? html` · <span class="edited">upraveno lékařem</span>` : ''}</p>
+            ${this.flags(s)}
           </div>`)}
           <p class="note prov">${icon('spark')}<span>${confirmed
             ? `Návrh ${h.provenance?.draftedBy || 'llm:' + h.model} · ověřil(a) ${h.provenance?.verifiedBy} · ${fmtDate(c.submittedAt)}`
             : `Návrh připravil model ${h.model}${h.latencyMs ? ` za ${h.latencyMs} ms` : ''} · klikněte na text pro úpravu · rozhoduje lékař`}</span></p>`}
       </section>`;
+  }
+
+  /** Rule/AI flags of a section (missing / conflicting data, notes); text labels, not colour only. */
+  flags(s) {
+    if (!s.flags?.length) return '';
+    return html`<span class="flags">${s.flags.map((f) => html`<span class="flag ${f.kind}"><b>${FLAG[f.kind] || 'pozn.'}:</b><span>${f.text}</span></span>`)}</span>`;
+  }
+
+  flagSummary(h) {
+    const all = h.sections.flatMap((s) => s.flags || []);
+    const n = (k) => all.filter((f) => f.kind === k).length;
+    if (!n('missing') && !n('conflict')) return '';
+    return html`<p class="flagsum">${n('missing') ? html`<span class="pill miss">${icon('alert')}chybí ${n('missing')}</span>` : ''}${n('conflict')
+      ? html`<span class="pill warn">${icon('alert')}nesoulad ${n('conflict')} – ověřit</span>` : ''}${h.asOf ? html`<span class="muted small">stav k ${fmtDate(h.asOf, { year: true })}</span>` : ''}</p>`;
   }
 
   renderCompact(c) {
@@ -101,7 +126,8 @@ class HandoverPanel extends KocElement {
           <h2 id="hc-h">Handover od lékaře</h2>
           <div class="row"><span class="pill ok">${icon('check')}potvrzen</span><span class="pill ai">AI návrh</span></div>
         </div>
-        <ul>${h.sections.map((s) => html`<li><span>${s.title}${s.editedBy ? html` <span class="small edited">· upraveno</span>` : ''}</span>${this.copyBtn(s)}</li>`)}</ul>
+        ${this.flagSummary(h)}
+        <ul>${h.sections.map((s) => html`<li><span><span>${s.title}${s.editedBy ? html` <span class="small edited">· upraveno</span>` : ''}</span>${this.flags(s)}</span>${this.copyBtn(s)}</li>`)}</ul>
         <p class="originals">Originály: ${originals.join(' · ')}</p>
         <p class="source" style="margin-top:4px">Ověřil(a) ${h.provenance?.verifiedBy} · návrh ${h.provenance?.draftedBy}</p>
       </section>`;

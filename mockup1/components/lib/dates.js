@@ -7,7 +7,12 @@ export function currentScreen() {
   return ['gp', 'koordinator', 'mdt', 'revizni'].includes(s) ? s : 'overview';
 }
 
-export const demoDate = (screen = currentScreen()) => DEMO_DATES[screen];
+// A case may have its own demo clock (cases.js demoDates, e.g. Procházková in October 2026). store.js installs the
+// resolver; without a case id it answers for the case selected on that screen.
+let caseDate = () => null;
+export const setCaseDateResolver = (fn) => { caseDate = fn; };
+
+export const demoDate = (screen = currentScreen(), caseId) => caseDate(screen, caseId) || DEMO_DATES[screen];
 export const dateOnly = (d) => (d ? d.slice(0, 10) : null);
 
 const toUTC = (d) => {
@@ -27,17 +32,17 @@ export function fmtDate(d, { year = false, time = true } = {}) {
   return s;
 }
 
-export function nowStamp(screen = currentScreen()) {
+export function nowStamp(screen = currentScreen(), caseId) {
   const n = new Date();
   const hh = String(n.getHours()).padStart(2, '0');
   const mm = String(n.getMinutes()).padStart(2, '0');
-  return `${demoDate(screen)}T${hh}:${mm}`;
+  return `${demoDate(screen, caseId)}T${hh}:${mm}`;
 }
 
-export const isOverdue = (task, screen) => task.status !== 'done' && dateOnly(task.due) < demoDate(screen);
+export const isOverdue = (task, screen, caseId) => task.status !== 'done' && dateOnly(task.due) < demoDate(screen, caseId);
 
-export function dueLabel(task, screen) {
-  const today = demoDate(screen);
+export function dueLabel(task, screen, caseId) {
+  const today = demoDate(screen, caseId);
   const d = dateOnly(task.due);
   const time = task.due.length > 10 ? ' ' + task.due.slice(11, 16) : '';
   if (task.status !== 'done') {

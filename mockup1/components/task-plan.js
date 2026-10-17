@@ -77,7 +77,7 @@ class TaskPlan extends KocElement {
         <div class="grid" role="table" aria-label="Plán a úkoly">
           <div class="tr hdr" role="row"><span role="columnheader"><span class="sr-only">Stav</span></span><span role="columnheader">Krok</span><span role="columnheader">Na tahu</span><span role="columnheader">Termín</span></div>
           ${c.tasks.map((t, i) => {
-            const over = isOverdue(t, screen);
+            const over = isOverdue(t, screen, c.id);
             const pend = pendingDeps(c, t);
             const state = t.status === 'done' ? 'done' : over ? 'overdue' : t.status;
             const note = t.id === 'mdt1' && t.status !== 'done'
@@ -98,14 +98,14 @@ class TaskPlan extends KocElement {
                 ${this.blocked?.id === t.id ? html`<span class="blocked" role="alert">${icon('alert')}${this.blocked.text}</span>` : ''}
               </span>
               <span role="cell" class="owner"><span class="lbl-sm">Na tahu: </span>${t.owner}</span>
-              <span role="cell" class="due"><span class="lbl-sm">Termín: </span>${dueLabel(t, screen)}</span>
+              <span role="cell" class="due"><span class="lbl-sm">Termín: </span>${dueLabel(t, screen, c.id)}</span>
             </div>`;
           })}
         </div>
         ${this.adding ? html`<form class="add" data-action="add" aria-label="Nový úkol">
           <div><label for="nt-title">Krok</label><input id="nt-title" data-key="nt-title" required autocomplete="off"></div>
           <div><label for="nt-owner">Na tahu</label><input id="nt-owner" data-key="nt-owner" required value="Koordinátor"></div>
-          <div><label for="nt-due">Termín</label><input id="nt-due" type="date" data-key="nt-due" required value="${addDays(demoDate(screen), 2)}"></div>
+          <div><label for="nt-due">Termín</label><input id="nt-due" type="date" data-key="nt-due" required value="${addDays(demoDate(screen, c.id), 2)}"></div>
           <div class="btns"><button class="btn" type="button" data-action="cancel-add">Zrušit</button><button class="btn primary" type="submit">Přidat</button></div>
         </form>` : ''}
       </section>`;

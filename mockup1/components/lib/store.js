@@ -1,7 +1,7 @@
 // Tiny localStorage store. Emits window 'koc:change' with {id} after every change ({id: null} = all).
 // The koordinator / mdt / revizni screens render a pre-baked state for their demo date
 // whenever the stored (live) case has not progressed that far yet (see cases.js).
-import { currentScreen } from './dates.js';
+import { currentScreen, setCaseDateResolver } from './dates.js';
 import { loadJSON } from './data.js';
 import { CASES } from './cases.js';
 
@@ -10,13 +10,17 @@ const data = {};
 let state = null;
 
 export async function initStore() {
-  const files = ['handover-novak', 'handover-vesela', 'template-pancreas', 'template-ovary', 'closed-cases', 'mdt-structured-novak', 'queue'];
-  const [handover, handoverVesela, pancreas, ovary, closed, mdt, queue] = await Promise.all(files.map((f) => loadJSON(`data/${f}.json`)));
+  const files = ['handover-novak', 'handover-vesela', 'handover-prochazkova', 'handover-prochazkova-mdt',
+    'template-pancreas', 'template-ovary', 'template-pancreas-koc2', 'closed-cases', 'mdt-structured-novak', 'queue'];
+  const [handover, handoverVesela, handoverProch, handoverProchMdt, pancreas, ovary, koc2, closed, mdt, queue] =
+    await Promise.all(files.map((f) => loadJSON(`data/${f}.json`)));
   Object.assign(data, {
-    handover, handovers: { novak: handover, vesela: handoverVesela },
-    template: pancreas, templates: { [pancreas.id]: pancreas, [ovary.id]: ovary },
+    handover, handovers: { novak: handover, vesela: handoverVesela, prochazkova: handoverProch, 'prochazkova-mdt': handoverProchMdt },
+    template: pancreas, templates: { [pancreas.id]: pancreas, [ovary.id]: ovary, [koc2.id]: koc2 },
     closed, mdt, queue,
   });
+  // Per-case demo clock: the case passed in, or the one selected on that screen.
+  setCaseDateResolver((screen, id) => CASES[id || getSelected(screen)]?.demoDates?.[screen] || null);
   window.addEventListener('storage', (e) => {
     if (e.key === KEY || e.key === null) { state = null; emit(null); }
   });
@@ -84,8 +88,19 @@ export function updateCase(id, patchFn, { base = 'view' } = {}) {
   return c;
 }
 
-export function reset() {
-  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
-  state = { cases: {}, selected: {} };
-  emit(null);
+/**
+ * Back to the initial demo state: all cases (and screen selections), or one case only. Also fires
+ * window 'koc:reset' {id} so components drop their in-memory UI state (scanned files, uploads in progress).
+ */
+export function reset(id = null) {
+  if (id) {
+    const s = readState();
+    const { [id]: _, ...cases } = s.cases;
+    writeState({ ...s, cases });
+  } else {
+    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+    state = { cases: {}, selected: {} };
+  }
+  window.dispatchEvent(new CustomEvent('koc:reset', { detail: { id } }));
+  emit(id);
 }

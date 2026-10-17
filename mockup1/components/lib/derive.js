@@ -61,7 +61,7 @@ export function deriveSteps(c, tpl, screen) {
     set(2, 'todo', 'Po odeslání převezme koordinátor KOC');
     set(3, 'todo', 'Závěr MDT se vrátí k vám');
   } else {
-    set(0, 'done', closedish ? `FHIR + epikríza · ${srcCount} zdrojů` : `Převzato z FHIR · ${srcCount} zdrojů + epikríza`);
+    set(0, 'done', c.sources?.label || (closedish ? `FHIR + epikríza · ${srcCount} zdrojů` : `Převzato z FHIR · ${srcCount} zdrojů + epikríza`));
     const late = ecogDelay(c);
     if (gpOpen.length) {
       set(1, 'done-with-issue', `${gpOpen.length} ${plural(gpOpen.length, 'dotaz na lékaře otevřený', 'dotazy na lékaře otevřené', 'dotazů na lékaře otevřených')}`);
@@ -78,7 +78,7 @@ export function deriveSteps(c, tpl, screen) {
       if (mdtTask?.status === 'done') set(2, 'active', 'MDT proběhlo · nahrajte závěr');
       else if (blocking.length) set(2, 'active', `${blocking.length} ${plural(blocking.length, 'blokuje', 'blokují', 'blokuje')} MDT ${mdtDate}`);
       else set(2, 'active', `podklady kompletní · MDT ${mdtDate}`);
-      if (c.tasks.some((t) => isOverdue(t, screen))) s[2].pill = { text: 'po termínu', tone: 'miss' };
+      if (c.tasks.some((t) => isOverdue(t, screen, c.id))) s[2].pill = { text: 'po termínu', tone: 'miss' };
       set(3, 'todo', 'Po nahrání zprávy z MDT');
     } else {
       const issue = c.mdt.find((m) => m.issue);
@@ -100,7 +100,7 @@ export function deriveSteps(c, tpl, screen) {
 /** Time-to-treatment segments T1 + T2 + T3 (days). */
 export function deriveTT(c, tpl, screen) {
   const t = c.timeline;
-  const today = demoDate(screen);
+  const today = demoDate(screen, c.id);
   const segs = [];
   segs.push({ key: 'T1', desc: 'symptom → KOC', days: daysBetween(t.symptom, t.referral), state: 'done' });
   if (t.mdtDecision) {

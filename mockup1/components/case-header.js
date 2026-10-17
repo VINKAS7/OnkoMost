@@ -2,7 +2,8 @@ import { KocElement } from './lib/base.js';
 import { html } from './lib/html.js';
 import { icon } from './lib/icons.js';
 import { getCase, templateFor } from './lib/store.js';
-import { markReviewed } from './lib/actions.js';
+import { markReviewed, coordinatorOf } from './lib/actions.js';
+import { CASES } from './lib/cases.js';
 import { fmtDate, isOverdue, currentScreen } from './lib/dates.js';
 
 const PHASE_PILL = {
@@ -60,10 +61,10 @@ class CaseHeader extends KocElement {
             </div>
           </div>
         </div>
-        <p class="line">${templateFor(c).board || 'MDT HPB'}, KOC VFN Praha · předkládá Bc. Petra Malá (koordinátorka) · referující ${c.serviceRequest.requester}, ${c.serviceRequest.requesterOrg} · ${c.patient.summary}</p>
+        <p class="line">${templateFor(c).board || 'MDT HPB'}, ${CASES[c.id].kocLabel || 'KOC VFN Praha'} · předkládá ${coordinatorOf(c.id)} (koordinátorka) · referující ${c.serviceRequest.requester}, ${c.serviceRequest.requesterOrg} · ${c.patient.summary}</p>
       </section>`;
     }
-    const overdue = c.tasks.some((t) => isOverdue(t, currentScreen()));
+    const overdue = c.tasks.some((t) => isOverdue(t, currentScreen(), c.id));
     const [tone, label] = overdue && c.phase === 'active' ? ['miss', 'po termínu'] : PHASE_PILL[c.phase];
     const hospital = c.tasks.find((t) => t.id === 'hospital' && t.status === 'done');
     const active = c.phase === 'active';
@@ -80,6 +81,7 @@ class CaseHeader extends KocElement {
         </div>
       </div>
       <p class="line">${c.serviceRequest.reasonCode} susp. · referoval(a) ${c.serviceRequest.requester}, ${c.serviceRequest.requesterOrg} · ${fmtDate(c.timeline.referral, { year: true })}${hospital ? ' · hospitalizován Interna VFN' : ''}</p>
+      ${c.patient.contact ? html`<p class="line">Kontaktní osoba: ${c.patient.contact.name} (${c.patient.contact.relation}), ${c.patient.contact.phone}${c.patient.contact.consent ? ' · pacientka souhlasí se sdílením informací' : ''}</p>` : ''}
     </section>`;
   }
 
