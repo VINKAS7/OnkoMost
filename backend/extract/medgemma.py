@@ -37,27 +37,29 @@ def _cache_path(payload: dict):
     return settings.llm_cache_dir / f"{key}.json"
 
 
-def _chat(messages: list[dict], fmt: dict | None, num_predict: int = 1024) -> str:
+def _chat(messages: list[dict], fmt: dict | str | None, num_predict: int = 1024,
+          temperature: float = 0, num_ctx: int = 4096, cache: bool = True) -> str:
     payload = {
         "model": settings.medgemma_model,
         "messages": messages,
         "stream": False,
         "think": False,
-        "options": {"temperature": 0, "num_ctx": 4096, "num_predict": num_predict, "seed": 7},
+        "options": {"temperature": temperature, "num_ctx": num_ctx, "num_predict": num_predict, "seed": 7},
     }
     if fmt is not None:
-        payload["format"] = fmt
-    cache = _cache_path(payload)
-    if cache.exists():
-        return json.loads(cache.read_text(encoding="utf-8"))["content"]
+        payload["format"] = fmt  # Ollama: JSON schema dict, or the string "json"
+    path = _cache_path(payload)
+    if cache and path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))["content"]
     try:
         r = httpx.post(f"{settings.ollama_url}/api/chat", json=payload, timeout=300)
         r.raise_for_status()
     except httpx.HTTPError as e:
         raise LLMUnavailable(f"Ollama/{settings.medgemma_model}: {e}") from e
     content = r.json()["message"]["content"]
-    cache.write_text(json.dumps({"content": content, "model": settings.medgemma_model}, ensure_ascii=False),
-                     encoding="utf-8")
+    if cache:
+        path.write_text(json.dumps({"content": content, "model": settings.medgemma_model}, ensure_ascii=False),
+                        encoding="utf-8")
     return content
 
 
@@ -91,6 +93,59 @@ def _salvage(raw: str, schema: type[T]) -> T | None:
         except ValidationError:
             continue
     return None
+
+
+def _json_object(raw: str) -> str:
+    cleaned = (raw or "").strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[-1]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[: cleaned.rfind("```")].strip()
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start >= 0 and end > start:
+        return cleaned[start: end + 1]
+    return cleaned
+
+
+def complete_json(system: str, user: str, *, num_predict: int = 2200,
+                  temperature: float = 0.3, num_ctx: int = 4096) -> dict:
+    """Raw JSON object from the model. Does not cache. Raises LLMUnavailable on empty/invalid JSON."""
+    raw = _chat(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        "json", num_predict=num_predict, temperature=temperature, num_ctx=num_ctx, cache=False,
+    )
+    cleaned = _json_object(raw)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        log.warning("LLM JSON parse failed: %s | raw=%s", e, cleaned[:240])
+        raise LLMUnavailable("the model did not return JSON") from e
+    if not isinstance(data, dict):
+        raise LLMUnavailable("the model did not return a JSON object")
+    return data
+
+
+def complete(system: str, user: str, schema: type[T], *, num_predict: int = 1800,
+             temperature: float = 0.2, num_ctx: int = 4096, use_schema: bool = False) -> T:
+    """Structured generation (pathway drafts etc.). Raises LLMUnavailable if Ollama is down or JSON is empty."""
+    fmt: dict | str | None = schema.model_json_schema() if use_schema else "json"
+    raw = _chat(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        fmt, num_predict=num_predict, temperature=temperature, num_ctx=num_ctx, cache=False,
+    )
+    cleaned = _json_object(raw)
+    try:
+        return schema.model_validate_json(cleaned)
+    except ValidationError as e:
+        salvaged = _salvage(cleaned, schema)
+        if salvaged is not None:
+            return salvaged
+        try:
+            return schema.model_validate(json.loads(cleaned))
+        except (json.JSONDecodeError, ValidationError):
+            pass
+        log.warning("LLM JSON did not fit %s: %s | raw=%s", schema.__name__, str(e)[:200], cleaned[:240])
+        raise LLMUnavailable(f"the model did not return a usable {schema.__name__}") from e
 
 
 def write(instruction: str, facts: str, max_tokens: int = 400) -> str:

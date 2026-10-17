@@ -55,7 +55,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshHealth]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
-
   const setKocId = (id: number) => { setKocIdState(id); save("onkomost.koc", String(id)); };
   const setLang = (l: Lang) => { setLangState(l); save("onkomost.lang", l); };
   const setTheme = (th: Theme) => { setThemeState(th); save("onkomost.theme", th); };

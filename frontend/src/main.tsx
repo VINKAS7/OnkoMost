@@ -5,6 +5,7 @@ import { fmtDate } from "./api";
 import { useFetch } from "./hooks";
 import type { Notification } from "./types";
 import { api } from "./api";
+import { Icon } from "./components/Icon";
 import { LangSwitch, Status, ThemeSwitch } from "./components/ui";
 import { AppProvider, useAction, useApp } from "./ctx";
 import "./styles.css";
@@ -22,10 +23,13 @@ import MdtList from "./pages/mdt/MdtList";
 import MdtWorkspace from "./pages/mdt/MdtWorkspace";
 
 type Portal = "gp" | "koc" | "mdt";
-const PORTALS: Record<Portal, { title: string; nav: [string, string][] }> = {
-  gp: { title: "role.gp", nav: [["/gp", "nav.refer"]] },
-  koc: { title: "role.koc", nav: [["/koc", "nav.dashboard"], ["/koc/pathways", "nav.pathways"], ["/koc/proposals", "nav.proposals"], ["/koc/outbox", "nav.outbox"]] },
-  mdt: { title: "role.mdt", nav: [["/mdt", "nav.meetings"], ["/koc/pathways", "nav.pathways"]] },
+const PORTALS: Record<Portal, { title: string; nav: [string, string, string][] }> = {
+  gp: { title: "role.gp", nav: [["/gp", "nav.refer", "stethoscope"]] },
+  koc: {
+    title: "role.koc",
+    nav: [["/koc", "nav.dashboard", "inbox"], ["/koc/pathways", "nav.pathways", "route"], ["/koc/proposals", "nav.proposals", "vote"], ["/koc/outbox", "nav.outbox", "send"]],
+  },
+  mdt: { title: "role.mdt", nav: [["/mdt", "nav.meetings", "users"], ["/koc/pathways", "nav.pathways", "route"]] },
 };
 
 function Notifications() {
@@ -37,14 +41,17 @@ function Notifications() {
   const color = { overdue: "red", due_soon: "orange", question: "purple" } as const;
   return (
     <div style={{ position: "relative" }}>
-      <button className="linkbtn" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {t("notif.title")}{items.length ? ` (${items.length})` : ""}
+      <button className="ghost icon-btn" onClick={() => setOpen(!open)} aria-expanded={open} title={t("notif.title")}>
+        <Icon name="bell" />
+        {t("notif.title")}
+        {!!items.length && <span className={`count ${items.some((n) => n.level === "overdue") ? "red" : ""}`}>{items.length}</span>}
       </button>
       {open && (
-        <div className="block" style={{ position: "absolute", right: 0, top: 28, width: 380, maxHeight: 420, overflow: "auto", zIndex: 50, padding: 8, boxShadow: "0 8px 24px rgba(15,15,15,0.14)" }}>
-          {!items.length && <div className="small muted" style={{ padding: 6 }}>{t("notif.none")}</div>}
+        <div className="popover">
+          <div className="section-title" style={{ padding: "8px 8px 2px" }}>{t("notif.title")}</div>
+          {!items.length && <div className="small muted" style={{ padding: 8 }}>{t("notif.none")}</div>}
           {items.map((n) => (
-            <div key={n.task_id} className="check" style={{ gridTemplateColumns: "12px 1fr", padding: "7px 4px" }}
+            <div key={n.task_id} className="check" style={{ gridTemplateColumns: "12px 1fr", padding: "9px 8px" }}
               onClick={() => { setOpen(false); nav(`/koc/cases/${n.case_id}`); }}>
               <span className={`dot ${color[n.level]}`} />
               <div>
@@ -67,22 +74,24 @@ function TopBar({ portal }: { portal: Portal }) {
   return (
     <header className="topbar">
       {portal !== "gp" && (
-        <select value={kocId} onChange={(e) => setKocId(Number(e.target.value))} aria-label={t("top.koc")} style={{ minHeight: 28, border: "none", background: "transparent", fontWeight: 600, paddingLeft: 0 }}>
+        <select className="koc-pick" value={kocId} onChange={(e) => setKocId(Number(e.target.value))} aria-label={t("top.koc")}>
           <option value={0}>{t("top.all")}</option>
           {kocs.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
       )}
-      <div className="row small muted">
-        {editing ? (
-          <input type="date" defaultValue={health?.today} autoFocus style={{ minHeight: 28 }}
-            onBlur={(e) => { setEditing(false); if (e.target.value && e.target.value !== health?.today) run(() => api.post("/api/clock", { today: e.target.value }), "✓", () => { refreshHealth(); window.dispatchEvent(new Event("onkomost:refresh")); }); }} />
-        ) : <button className="linkbtn" title={t("top.date")} onClick={() => setEditing(true)}>{t("top.date")}: {health?.today ?? "—"}</button>}
-      </div>
-      <div className="row right" style={{ gap: 14 }}>
+      {editing ? (
+        <input type="date" defaultValue={health?.today} autoFocus style={{ minHeight: 34, width: "auto" }}
+          onBlur={(e) => { setEditing(false); if (e.target.value && e.target.value !== health?.today) run(() => api.post("/api/clock", { today: e.target.value }), "✓", () => { refreshHealth(); window.dispatchEvent(new Event("onkomost:refresh")); }); }} />
+      ) : (
+        <button className="ghost icon-btn" title={t("top.date")} onClick={() => setEditing(true)}>
+          <Icon name="calendar" />{t("top.date")}: <b style={{ fontWeight: 600, color: "var(--text)" }}>{health?.today ? fmtDate(health.today) : "—"}</b>
+        </button>
+      )}
+      <div className="row right" style={{ gap: 8 }}>
         {portal !== "gp" && <Notifications />}
-        <Status color={health?.medgemma ? "green" : "red"} title={health?.model}>{health?.model ?? "MedGemma"}</Status>
-        <Status color={neoOk ? "green" : "red"} title={health?.neo4j}>Neo4j</Status>
-        {!!health?.queue && <Status color="yellow">{health.queue} …</Status>}
+        <Status pill color={health?.medgemma ? "green" : "red"} title={health?.model}>{health?.model ?? "MedGemma"}</Status>
+        <Status pill color={neoOk ? "green" : "red"} title={health?.neo4j}>Neo4j</Status>
+        {!!health?.queue && <Status pill color="yellow">{health.queue} …</Status>}
       </div>
     </header>
   );
@@ -94,13 +103,15 @@ function Layout({ portal, children }: { portal: Portal; children: ReactNode }) {
   return (
     <div className="app">
       <aside className="sidebar">
-        <Link to="/" className="ws" style={{ textDecoration: "none", color: "inherit", flexDirection: "column", alignItems: "flex-start", gap: 0 }}>
-          <span>Onkomost</span>
-          <span className="xs muted" style={{ fontWeight: 500 }}>{t(p.title)}</span>
+        <Link to="/" className="ws">
+          <span className="ws-icon"><Icon name="bridge" /></span>
+          <span>
+            <div className="ws-name">Onkomost</div>
+            <div className="ws-sub">{t(p.title)}</div>
+          </span>
         </Link>
-        <div style={{ height: 10 }} />
-        {p.nav.map(([to, key]) => (
-          <NavLink key={to} to={to} end className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>{t(key)}</NavLink>
+        {p.nav.map(([to, key, icon]) => (
+          <NavLink key={to} to={to} end className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}><Icon name={icon} />{t(key)}</NavLink>
         ))}
         <div className="side-foot">
           <LangSwitch />

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { fmtDate } from "../api";
 import { useApp } from "../ctx";
 import type { Source, Task } from "../types";
@@ -14,8 +14,8 @@ export function Tag({ color = "gray", children, title }: { color?: string; child
 }
 
 /** A coloured dot + short text – the main way status is shown. */
-export function Status({ color, children, title }: { color: string; children: ReactNode; title?: string }) {
-  return <span className="st" title={title}><span className={`dot ${color}`} />{children}</span>;
+export function Status({ color, children, title, pill }: { color: string; children: ReactNode; title?: string; pill?: boolean }) {
+  return <span className={`st ${pill ? "pill-st" : ""}`} title={title}><span className={`dot ${color}`} />{children}</span>;
 }
 
 export function StateTag({ state }: { state: string }) {
@@ -98,6 +98,23 @@ export function ThemeSwitch() {
       <button className={theme === "dark" ? "on" : ""} onClick={() => setTheme("dark")}>{label("dark")}</button>
     </div>
   );
+}
+
+/** A textarea that grows with its text instead of scrolling. */
+export function AutoTextarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const fit = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  };
+  useLayoutEffect(fit, [props.value]);
+  useEffect(() => {
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
+  return <textarea ref={ref} rows={1} className={`auto ${className}`} {...props} />;
 }
 
 export function Spinner() {

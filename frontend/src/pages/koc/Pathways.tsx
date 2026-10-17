@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, fmtDate } from "../../api";
-import { FlowLegend, PathwayFlow } from "../../components/PathwayFlow";
+import { Icon } from "../../components/Icon";
+import { FlowLegend, nodeKind, PathwayFlow } from "../../components/PathwayFlow";
+import { FormatChips, Requirements } from "../../components/Requirements";
 import { PageHead, Tag } from "../../components/ui";
 import { useAction, useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
@@ -27,48 +29,99 @@ export default function Pathways() {
     <div className="page wide">
       <PageHead title={t("pws.title")} lead={t("pws.sub")}
         right={p && (myDraft ? <Link to={`/koc/pathway-versions/${myDraft.id}/edit`} className="btn">{t("pws.continue")} v{myDraft.version}</Link> :
-          <button className="primary" disabled={busy || !kocId} title={!kocId ? t("koc.pickCentre") : undefined} onClick={() => run(() => api.post<{ version_id: number }>(`/api/pathways/${p.id}/drafts`, { koc_id: kocId }), "✓", (r) => nav(`/koc/pathway-versions/${r.version_id}/edit`))}>{t("pws.propose")}</button>)} />
-      <div className="row wrap" style={{ gap: 8 }}>
+          <div className="row" style={{ gap: 8 }}>
+            <button disabled={busy || !kocId} title={!kocId ? t("koc.pickCentre") : undefined} onClick={() => run(() => api.post<{ version_id: number }>(`/api/pathways/${p.id}/drafts`, { koc_id: kocId, blank: true }), "✓", (r) => nav(`/koc/pathway-versions/${r.version_id}/edit`))}>{t("pws.proposeNew")}</button>
+            <button className="primary" disabled={busy || !kocId} title={!kocId ? t("koc.pickCentre") : undefined} onClick={() => run(() => api.post<{ version_id: number }>(`/api/pathways/${p.id}/drafts`, { koc_id: kocId }), "✓", (r) => nav(`/koc/pathway-versions/${r.version_id}/edit`))}>{t("pws.propose")}</button>
+          </div>)} />
+      <div className="tabs" role="tablist">
         {(pathways ?? []).map((x) => (
-          <button key={x.id} className={x.id === p?.id ? "primary" : ""} onClick={() => { setPid(x.id); setSel(null); }}>
+          <button key={x.id} role="tab" aria-selected={x.id === p?.id} className={x.id === p?.id ? "active" : ""} onClick={() => { setPid(x.id); setSel(null); }}>
             {pick(x.name, x.name_en)}
           </button>
         ))}
       </div>
       {p && version && (
-        <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)" }}>
-          <div className="col" style={{ gap: 8 }}>
-            <div className="spread"><h2>{pick(p.name, p.name_en)} <span className="muted">v{version.version}</span></h2><FlowLegend plain /></div>
-            <PathwayFlow graph={version.graph} plain selectedId={sel} onSelect={setSel} height={820} />
+        <div className="window">
+          <div className="window-bar">
+            <div className="crumbs">
+              <span>{pick(p.name, p.name_en)}</span>
+              <Icon name="chevron" />
+              <span className="muted" style={{ fontWeight: 500 }}>v{version.version}</span>
+            </div>
+            <Tag color={STATUS_COLOR[version.status]}>{version.status}</Tag>
+            <div className="right"><FlowLegend plain /></div>
           </div>
-          <div className="col" style={{ gap: 14 }}>
-            {node && (
-              <section className="block">
-                <h3>{pick(node.label, node.label_en)}</h3>
-                <table className="small" style={{ marginTop: 6 }}><tbody>
-                  <tr><td className="muted">type</td><td>{node.type} · {node.phase}</td></tr>
-                  <tr><td className="muted">{t("pw.owner")}</td><td>{node.owner_role}</td></tr>
-                  <tr><td className="muted">SLA</td><td>{node.sla_days ?? 0} d</td></tr>
-                  {!!node.requires?.length && <tr><td className="muted">{t("pw.requires")}</td><td className="mono">{node.requires.map((r) => JSON.stringify(r)).join(" ")}</td></tr>}
-                  {!!node.branches?.length && <tr><td className="muted">{t("kind.decision")}</td><td>{node.branches.map((b) => pick(b.label, b.label_en)).join(" / ")}{node.multi ? " (multi)" : ""}</td></tr>}
-                  {node.description && <tr><td className="muted">·</td><td>{node.description}</td></tr>}
-                </tbody></table>
-              </section>
-            )}
-            <section className="block">
-              <h3>{t("pws.versions")}</h3>
-              <table className="small" style={{ marginTop: 6 }}><tbody>
-                {[...p.versions].reverse().map((v) => (
-                  <tr key={v.id} style={{ cursor: "pointer", background: v.id === vid ? "var(--hover)" : undefined }} onClick={() => setVid(v.id)}>
-                    <td><b>v{v.version}</b></td><td><Tag color={STATUS_COLOR[v.status]}>{v.status}</Tag></td>
-                    <td className="muted">{v.created_by_koc_id ? kocs.find((k) => k.id === v.created_by_koc_id)?.code : "seed"}</td>
-                    <td className="muted">{fmtDate(v.activated_at ?? v.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody></table>
-              <div className="xs muted" style={{ marginTop: 8 }}>{t("pws.running")}</div>
-            </section>
-            <section className="small"><div className="section-title">{t("pws.source")}</div><div className="muted" style={{ marginTop: 4 }}>{p.guideline_source}</div></section>
+          <div className="window-split">
+            <PathwayFlow graph={version.graph} plain framed={false} selectedId={sel} onSelect={setSel} height={780} />
+            <aside className="window-side">
+              <div className="window-panel">
+                {node ? (() => {
+                  const kind = nodeKind(node);
+                  return (
+                    <>
+                      <div className="panel-head">
+                        <span className="kic"><Icon name={kind.icon} /></span>
+                        <div className="grow" style={{ minWidth: 0 }}>
+                          <div className="xs muted">{t(kind.key)} · <span className="mono">{node.id}</span></div>
+                          <h3>{pick(node.label, node.label_en)}</h3>
+                        </div>
+                        <button className="ghost icon" aria-label="close" onClick={() => setSel(null)}><Icon name="x" /></button>
+                      </div>
+                      <div className="panel-body">
+                        <div className="card">
+                          <table className="small"><tbody>
+                            <tr><td className="muted">type</td><td>{node.type} · {node.phase}</td></tr>
+                            <tr><td className="muted">{t("pw.owner")}</td><td>{node.owner_role}</td></tr>
+                            <tr><td className="muted">SLA</td><td>{node.sla_days ?? 0} d</td></tr>
+                            {!!node.branches?.length && <tr><td className="muted">{t("kind.decision")}</td><td>{node.branches.map((b) => pick(b.label, b.label_en)).join(" / ")}{node.multi ? " (multi)" : ""}</td></tr>}
+                          </tbody></table>
+                        </div>
+                        {(node.description || node.description_en) && (
+                          <>
+                            <div className="section-title" style={{ marginBottom: -6 }}>{t("ed.description")}</div>
+                            <div className="small">{pick(node.description, node.description_en)}</div>
+                          </>
+                        )}
+                        {node.completion === "evidence" && (
+                          <>
+                            <div className="section-title" style={{ marginBottom: -6 }}>{t("ed.formats")}</div>
+                            <FormatChips value={node.accepted_formats} />
+                            <div className="section-title" style={{ marginBottom: -6 }}>{t("ed.when")}</div>
+                            <Requirements value={node.requires ?? []} />
+                          </>
+                        )}
+                      </div>
+                    </>
+                  );
+                })() : (
+                  <>
+                    <div className="panel-head">
+                      <span className="kic"><Icon name="layers" /></span>
+                      <h3 className="grow">{t("pws.versions")}</h3>
+                    </div>
+                    <div className="panel-body">
+                      <div className="card">
+                        <table className="small"><tbody>
+                          {[...p.versions].reverse().map((v) => (
+                            <tr key={v.id} style={{ cursor: "pointer", background: v.id === vid ? "var(--accent-soft)" : undefined }} onClick={() => setVid(v.id)}>
+                              <td><b>v{v.version}</b></td><td><Tag color={STATUS_COLOR[v.status]}>{v.status}</Tag></td>
+                              <td className="muted">{v.created_by_koc_id ? kocs.find((k) => k.id === v.created_by_koc_id)?.code : "seed"}</td>
+                              <td className="muted">{fmtDate(v.activated_at ?? v.created_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody></table>
+                      </div>
+                      <div className="xs muted">{t("pws.running")}</div>
+                      <div>
+                        <div className="section-title">{t("pws.source")}</div>
+                        <div className="small muted">{p.guideline_source}</div>
+                      </div>
+                      <div className="panel-empty" style={{ padding: "24px 12px" }}><Icon name="pointer" /><div className="small">{t("ed.pick")}</div></div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </aside>
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { api, fmtDate } from "../../../api";
+import { Icon } from "../../../components/Icon";
 import { FlowLegend, PathwayFlow } from "../../../components/PathwayFlow";
+import { FormatChips } from "../../../components/Requirements";
 import { DOC_COLOR, Due, Empty } from "../../../components/ui";
 import { useAction, useApp } from "../../../ctx";
 import type { CaseDetail, PathwayNode, Task } from "../../../types";
@@ -101,9 +103,11 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
 
   return (
     <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(320px, 1fr)", gap: 28 }}>
-      <div className="col" style={{ gap: 10 }}>
-        <FlowLegend />
-        <PathwayFlow graph={c.pathway_graph} selectedId={sel} onSelect={setSel} height={700} />
+      <div className="col" style={{ gap: 12 }}>
+        <div style={{ position: "relative" }}>
+          <div className="flow-legend"><FlowLegend /></div>
+          <PathwayFlow graph={c.pathway_graph} selectedId={sel} onSelect={setSel} height={700} />
+        </div>
         {node && (
           <div className="block">
             <div className="spread"><b>{pick(node.label, node.label_en)}</b>{node.doc_status && <span className="st"><span className={`dot ${DOC_COLOR[node.doc_status]}`} />{t(`doc.${node.doc_status}`)}</span>}</div>
@@ -111,15 +115,25 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
               <span>{node.owner_name}</span>
               {node.done_on ? <span>{t("pw.doneOn")} {fmtDate(node.done_on)}</span> : node.due_on && <span>{t("pw.due")} {fmtDate(node.due_on)}</span>}
             </div>
+            {(node.description || node.description_en) && <div className="small" style={{ marginTop: 10 }}>{pick(node.description, node.description_en)}</div>}
+            {node.completion === "evidence" && <div style={{ marginTop: 10 }}><FormatChips value={node.accepted_formats} /></div>}
             {node.conflicts?.map((x) => <div key={x.key} className="small" style={{ marginTop: 6, color: "var(--yellow)" }}>{pick(x.message, x.message_en)}{x.reviewed && " ✓"}</div>)}
             {node.evidence?.map((e, i) => <div key={i} className="small" style={{ marginTop: 4 }}><a href={`/api/documents/${e.doc_id}/raw`}>{e.title}</a> <span className="muted">· {fmtDate(e.date)}</span></div>)}
+            {node.completion === "evidence" && !node.evidence?.length && node.doc_status === "missing" && (
+              <div className="xs muted" style={{ marginTop: 8 }}>{t("pw.notParsed")}</div>
+            )}
           </div>
         )}
       </div>
 
-      <div className="col" style={{ gap: 26 }}>
-        <section>
-          <div className="section-title">{t("pw.checklist")}</div>
+      <div className="col" style={{ gap: 18 }}>
+        <section className="card">
+          <div className="card-head">
+            <span className="kic-lg"><Icon name="file" /></span>
+            <h3 className="grow">{t("pw.checklist")}</h3>
+            <span className="count">{evidence.filter((n) => n.doc_status === "have").length}/{evidence.length}</span>
+          </div>
+          <div style={{ padding: "6px 10px" }}>
           {evidence.map((n) => (
             <div key={n.id} className="check" onClick={() => setSel(n.id)}>
               <span className={`dot ${DOC_COLOR[n.doc_status ?? "missing"]}`} />
@@ -131,12 +145,18 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
               <span className="xs muted">{n.doc_status === "have" && n.evidence?.[0] ? fmtDate(n.evidence[0].date) : t(`doc.${n.doc_status ?? "missing"}`)}</span>
             </div>
           ))}
+          </div>
         </section>
 
-        {decisions.map((n) => <DecisionBlock key={n.id} node={n} c={c} reload={reload} />)}
+        {decisions.map((n) => <section key={n.id} className="card"><div className="card-body"><DecisionBlock node={n} c={c} reload={reload} /></div></section>)}
 
-        <section>
-          <div className="section-title">{t("pw.next")}</div>
+        <section className="card">
+          <div className="card-head">
+            <span className="kic-lg"><Icon name="checkSquare" /></span>
+            <h3 className="grow">{t("pw.next")}</h3>
+            <span className={`count ${mine.length ? "blue" : ""}`}>{mine.length}</span>
+          </div>
+          <div className="card-body" style={{ paddingTop: 6 }}>
           <div className="list">
             {mine.map((x) => <TaskRow key={x.id} task={x} c={c} reload={reload} go={go} msgs={msgs} />)}
             {!mine.length && <Empty>{t("pw.nothing")}</Empty>}
@@ -149,6 +169,7 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
           )}
           {done.length > 0 && <button className="linkbtn" style={{ marginTop: 12 }} onClick={() => setShowMore(!showMore)}>{showMore ? t("pw.hide") : `${t("pw.completed")} (${done.length})`}</button>}
           {showMore && <div className="list" style={{ marginTop: 6 }}>{done.map((x) => <TaskRow key={x.id} task={x} c={c} reload={reload} go={go} />)}</div>}
+          </div>
         </section>
 
         <Messages ref={msgs} c={c} reload={reload} />

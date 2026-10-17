@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, fmtDate } from "../../api";
-import { DocCounts, Spinner, Status } from "../../components/ui";
+import { AutoTextarea, DocCounts, Spinner, Status } from "../../components/ui";
 import { useAction, useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
 import type { AskResult, CaseDetail, MdtImport, MdtReport } from "../../types";
@@ -116,9 +116,9 @@ function DecisionPanel({ c, brief, reload }: { c: CaseDetail; brief: MdtReport |
         ))}
       </div>
       {suggested.length > 0 && !decided && <div className="xs muted">* {t("mdt.suggested")}</div>}
-      <label className="field">{t("mdt.diagnosis")}<textarea value={diagnosis} disabled={decided} onChange={(e) => setDiagnosis(e.target.value)} style={{ minHeight: 52 }} /></label>
-      <label className="field">{t("mdt.conclusion")}<textarea value={conclusion} disabled={decided} onChange={(e) => setConclusion(e.target.value)} style={{ minHeight: 100 }} /></label>
-      <label className="field">{t("mdt.recs")}<textarea value={recs} disabled={decided} onChange={(e) => setRecs(e.target.value)} style={{ minHeight: 100 }} /></label>
+      <label className="field">{t("mdt.diagnosis")}<AutoTextarea value={diagnosis} disabled={decided} onChange={(e) => setDiagnosis(e.target.value)} style={{ minHeight: 52 }} /></label>
+      <label className="field">{t("mdt.conclusion")}<AutoTextarea value={conclusion} disabled={decided} onChange={(e) => setConclusion(e.target.value)} style={{ minHeight: 100 }} /></label>
+      <label className="field">{t("mdt.recs")}<AutoTextarea value={recs} disabled={decided} onChange={(e) => setRecs(e.target.value)} style={{ minHeight: 100 }} /></label>
       {!!members.length && (
         <details>
           <summary className="small muted">{t("mdt.members")} ({present.length}/{members.length})</summary>

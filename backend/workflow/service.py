@@ -264,6 +264,17 @@ def process_document(doc_id: int) -> None:
             d.doc_type, d.title, d.doc_date = x.doc_type, x.title, x.doc_date
             d.facility, d.author, d.summary = x.facility, x.author, x.summary()
             if x.doc_type != "mdt_conclusion":
+                from backend.extract.match_nodes import match_document
+                case = s.get(Case, d.case_id)
+                try:
+                    extras = match_document(
+                        (case.pathway_version.graph_json or {}).get("nodes") or [],
+                        doc_type=x.doc_type, exam_type=x.exam_type, filename=d.filename,
+                        title=x.title, excerpt=doc.full_text)
+                except Exception:  # noqa: BLE001
+                    extras = []
+                x.facts.extend(extras)
+                x.llm_calls += sum(1 for f in extras if f.method == "medgemma")
                 doc_uid = f"{p_uuid}:{d.sha256}"
                 graph.delete_document(doc_uid)
                 graph.write_document(p_uuid, doc_uid, {

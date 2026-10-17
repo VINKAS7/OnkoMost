@@ -19,6 +19,7 @@ from backend.config import ROOT, settings
 from backend.extract import medgemma
 from backend.graph.store import graph
 from backend.pathway import governance as gov
+from backend.pathway.generate import generate as generate_pathway
 from backend.pathway.model import ROLES, validate
 from backend.seed import seed
 from backend.workflow import service as svc
@@ -48,6 +49,11 @@ async def _domain_error(_: Request, exc: Exception):
 @app.exception_handler(ValueError)
 async def _value_error(_: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(medgemma.LLMUnavailable)
+async def _llm_unavailable(_: Request, exc: medgemma.LLMUnavailable):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 def ok(data=None):
@@ -448,11 +454,12 @@ def pathway_version(version_id: int):
 class DraftIn(BaseModel):
     koc_id: int
     graph: dict | None = None
+    blank: bool = False
 
 
 @app.post("/api/pathways/{pathway_id}/drafts")
 def create_draft(pathway_id: int, body: DraftIn):
-    return ok({"version_id": gov.create_draft(pathway_id, body.koc_id, body.graph)})
+    return ok({"version_id": gov.create_draft(pathway_id, body.koc_id, body.graph, blank=body.blank)})
 
 
 @app.put("/api/pathway-versions/{version_id}")
@@ -468,6 +475,19 @@ def validate_graph(body: dict):
         return ok({"valid": True})
     except ValueError as e:
         return ok({"valid": False, "error": str(e)})
+
+
+class GenerateIn(BaseModel):
+    prompt: str
+    current: dict | None = None
+
+
+@app.post("/api/pathway-versions/generate")
+def generate_graph(body: GenerateIn):
+    prompt = (body.prompt or "").strip()
+    if len(prompt) < 8:
+        raise ValueError("Write a few sentences about the steps first.")
+    return ok({"graph": generate_pathway(prompt, body.current)})
 
 
 class ProposalIn(BaseModel):

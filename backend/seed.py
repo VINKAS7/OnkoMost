@@ -23,25 +23,43 @@ TREATMENTS = [
 ]
 
 
+REPORT = ["pdf", "docx", "doc"]
+SCAN = ["dcm", "dicom", "pdf", "docx", "jpg", "jpeg", "png", "tiff"]
+
+
 def standard_tail(feeders: list[str]) -> tuple[list[dict], list[dict]]:
     """handover → treatment MDT → decision to treat (5 options, multi) → feedback → K2 → closed."""
     nodes = [
         {"id": "handover", "type": "step", "label": "Handover potvrzen lékařem", "label_en": "Handover validated by doctor",
-         "phase": "mdt", "owner_role": "koc_doctor", "sla_days": 2, "completion": "manual", "action": "Potvrdit handover"},
+         "phase": "mdt", "owner_role": "koc_doctor", "sla_days": 2, "completion": "manual", "action": "Potvrdit handover",
+         "description": "Lékař KOC zkontroluje handover a potvrdí, že případ je připraven na MDT.",
+         "description_en": "The KOC doctor checks the handover and confirms the case is ready for the MDT."},
         {"id": "mdt", "type": "mdt", "label": "Léčebné MDT", "label_en": "Treatment MDT",
-         "phase": "mdt", "owner_role": "mdt", "sla_days": 7, "completion": "manual", "action": "Zapsat závěr MDT"},
+         "phase": "mdt", "owner_role": "mdt", "sla_days": 7, "completion": "manual", "action": "Zapsat závěr MDT",
+         "description": "Multidisciplinární tým zapíše diagnózu, závěr a doporučení léčby.",
+         "description_en": "The multidisciplinary team records the diagnosis, conclusion and treatment advice."},
         {"id": "decision", "type": "decision", "label": "Rozhodnutí o léčbě", "label_en": "Decision to treat",
          "phase": "mdt", "owner_role": "mdt", "sla_days": 0, "completion": "branch", "multi": True,
+         "description": "MDT vybere jeden nebo více léčebných plánů (sledování, paliace, chemo, radio, operace).",
+         "description_en": "The MDT picks one or more treatment plans (watch, palliative, chemo, radio, surgery).",
          "branches": [{"key": k, "label": cs, "label_en": en} for k, cs, en in TREATMENTS]},
         *[{"id": f"plan_{k}", "type": "treatment", "label": cs, "label_en": en, "phase": "treatment",
-           "owner_role": "k2_coordinator", "completion": "branch"} for k, cs, en in TREATMENTS],
+           "owner_role": "k2_coordinator", "completion": "branch",
+           "description": f"Zvolená léčba: {cs}.", "description_en": f"Chosen treatment: {en}."}
+          for k, cs, en in TREATMENTS],
         {"id": "feedback", "type": "feedback", "label": "Výsledek PL + revizní lékař", "label_en": "Result to GP + review doctor",
-         "phase": "after_mdt", "owner_role": "coordinator", "sla_days": 2, "completion": "manual", "action": "Odeslat výsledek"},
+         "phase": "after_mdt", "owner_role": "coordinator", "sla_days": 2, "completion": "manual", "action": "Odeslat výsledek",
+         "description": "Koordinátor odešle závěr MDT referujícímu lékaři a reviznímu lékaři.",
+         "description_en": "The coordinator sends the MDT result to the referring doctor and the review doctor."},
         {"id": "handover_k2", "type": "handover", "label": "Předání koordinátorovi léčby (K2)",
          "label_en": "Handover to treatment coordinator (K2)", "phase": "after_mdt", "owner_role": "coordinator",
-         "sla_days": 3, "completion": "manual", "action": "Předat K2"},
+         "sla_days": 3, "completion": "manual", "action": "Předat K2",
+         "description": "Případ se předává koordinátorovi léčby (K2) k realizaci plánu.",
+         "description_en": "The case is handed to the treatment coordinator (K2) to carry out the plan."},
         {"id": "closed", "type": "end", "label": "Uzavřeno", "label_en": "Closed", "phase": "after_mdt",
-         "owner_role": "coordinator", "completion": "auto"},
+         "owner_role": "coordinator", "completion": "auto",
+         "description": "Cesta je uzavřená – diagnostika a rozhodnutí jsou hotové.",
+         "description_en": "The pathway is closed – diagnostics and the decision are done."},
     ]
     edges = [{"source": f, "target": "handover"} for f in feeders] + [
         {"source": "handover", "target": "mdt"}, {"source": "mdt", "target": "decision"},
@@ -87,6 +105,19 @@ def seed(clock: date | None = None) -> None:
                 s.add(row)
                 s.flush()
                 s.add(PathwayVersion(pathway_id=row.id, version=1, status="active", graph_json=pw["graph"]))
+            else:
+                # keep structure of running versions; refresh title/description/formats from seed
+                src = {n["id"]: n for n in pw["graph"]["nodes"]}
+                for v in row.versions:
+                    g = copy.deepcopy(v.graph_json)
+                    for n in g.get("nodes") or []:
+                        snode = src.get(n["id"])
+                        if not snode:
+                            continue
+                        for key in ("description", "description_en", "accepted_formats", "label", "label_en"):
+                            if snode.get(key):
+                                n[key] = snode[key]
+                    v.graph_json = g
         if clock:
             set_today(s, clock)
 

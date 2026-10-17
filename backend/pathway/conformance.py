@@ -20,6 +20,7 @@ from datetime import date, timedelta
 
 from backend.extract.pipeline import ANTICOAGULANTS
 from backend.graph.store import graph
+from backend.pathway.formats import format_ok
 from backend.pathway.model import Node, PathwayGraph
 
 
@@ -83,6 +84,15 @@ def check_requirement(req: dict, ctx: Ctx) -> tuple[bool, list[dict], dict]:
                     for i in items if i["doc_ids"]]
         # no referral listing prior exams → nothing to collect
         return not missing, received, {"items": items, "missing": missing}
+    if kind == "described":
+        nid = req.get("node_id") or ""
+        rows = graph.run(f"""{base} MATCH (pt)-[:HAS]->(m:OnkNodeMatch {{node_id: $nid}})-[r:STATED_IN]->(d:OnkDocument)
+                             WHERE d.date <= $cutoff
+                             RETURN d.sqlite_id AS doc_id, d.uid AS doc_uid, d.title AS title, d.date AS date,
+                                    r.quote AS quote, d.filename AS filename ORDER BY d.date""", nid=nid, **p)
+        accepted = req.get("accepted_formats") or []
+        kept = [r for r in rows if format_ok(accepted, r.get("filename") or "")]
+        return bool(kept), _ev(kept), {}
     raise ValueError(f"unknown requirement {kind}")
 
 
@@ -151,10 +161,19 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
                 else:
                     oks, evidence, detail = [], [], {}
                     for req in node.requires:
-                        ok, ev, det = check_requirement(req, ctx)
+                        payload = dict(req)
+                        if payload.get("kind") == "described":
+                            payload.setdefault("node_id", nid)
+                            payload.setdefault("accepted_formats", node.accepted_formats)
+                        ok, ev, det = check_requirement(payload, ctx)
                         oks.append(ok)
                         evidence += ev
                         detail.update(det)
+                    if not all(oks) and (node.description or node.accepted_formats):
+                        ok, ev, _ = check_requirement(
+                            {"kind": "described", "node_id": nid, "accepted_formats": node.accepted_formats}, ctx)
+                        if ok:
+                            oks, evidence = [True] * max(1, len(oks)), ev
                     st["evidence"], st["detail"] = evidence, detail
                     if all(oks):
                         st["status"] = "done"

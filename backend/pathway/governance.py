@@ -14,7 +14,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.pathway.model import diff, validate
+from backend.pathway.model import BLANK_GRAPH, diff, validate
 from backend.workflow.db import (ChangeProposal, Koc, OutboxMessage, Pathway, PathwayVersion, Vote, audit,
                                  session_scope, today)
 
@@ -36,10 +36,10 @@ def active_version(s: Session, pathway_id: int) -> PathwayVersion:
     return v
 
 
-def create_draft(pathway_id: int, koc_id: int, graph: dict | None = None) -> int:
+def create_draft(pathway_id: int, koc_id: int, graph: dict | None = None, blank: bool = False) -> int:
     with session_scope() as s:
         base = active_version(s, pathway_id)
-        g = graph or base.graph_json
+        g = BLANK_GRAPH if blank else (graph or base.graph_json)
         validate(g)
         last = max(v.version for v in s.get(Pathway, pathway_id).versions)
         v = PathwayVersion(pathway_id=pathway_id, version=last + 1, status="draft", graph_json=g,

@@ -31,7 +31,8 @@ export type PathwayNode = {
   id: string; type: string; label: string; label_en?: string; phase?: string; owner_role?: string; sla_days?: number;
   completion?: string; requires?: Requirement[]; skip_if?: Requirement[];
   branches?: { key: string; label: string; label_en?: string }[]; multi?: boolean;
-  branch?: string | null; blocking?: boolean; action?: string; description?: string;
+  branch?: string | null; blocking?: boolean; action?: string; description?: string; description_en?: string;
+  accepted_formats?: string[];
   // filled in for a case:
   status?: "done" | "available" | "blocked" | "skipped"; done_on?: string | null; due_on?: string | null;
   available_on?: string | null; owner_name?: string;

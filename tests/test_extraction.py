@@ -63,3 +63,25 @@ def test_rc_and_identity():
     wrong = {**header, "rc": "635723/1014"}
     res = check_identity(wrong, "635722/1013", "Alena Procházková", date(1963, 7, 22))
     assert not res["ok"] and any("RČ" in i for i in res["issues"])
+
+
+def test_node_formats_and_described_match():
+    from backend.extract.match_nodes import match_document
+    from backend.pathway.formats import format_ok
+    from backend.pathway.model import BLANK_GRAPH, validate
+
+    assert format_ok(["pdf", "docx"], "zprava.pdf")
+    assert format_ok(["dicom"], "scan.dcm")
+    assert not format_ok(["dicom"], "letter.docx")
+    assert format_ok(["any"], "film.tiff")
+    validate(BLANK_GRAPH)
+
+    ct = {"id": "ct", "completion": "evidence", "label": "CT hrudníku", "label_en": "CT scan",
+          "description": "Chest CT report", "accepted_formats": ["dicom", "pdf"],
+          "requires": [{"kind": "exam", "exam_type": "ct"}]}
+    hits = match_document([ct], doc_type="imaging", exam_type="ct", filename="ct_hrudniku.pdf",
+                          title="CT hrudníku", excerpt="Závěr: CT hrudníku bez uzlin.")
+    assert hits and hits[0].props["node_id"] == "ct"
+    miss = match_document([ct], doc_type="referral", exam_type=None, filename="zadost.docx",
+                          title="Žádost o převzetí", excerpt="Žádost o převzetí do KOC.")
+    assert not miss

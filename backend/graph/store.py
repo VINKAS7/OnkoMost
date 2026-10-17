@@ -25,7 +25,7 @@ LABELS = {
     "symptom": "OnkSymptom", "exam": "OnkExam", "lab": "OnkLabResult", "measurement": "OnkMeasurement",
     "diagnosis": "OnkDiagnosis", "contact_person": "OnkContactPerson", "referring_doctor": "OnkReferringDoctor",
     "mentioned_exam": "OnkMentionedExam", "precaution": "OnkPrecaution", "note": "OnkNote",
-    "mdt_question": "OnkMdtQuestion", "epikriza": "OnkEpikriza",
+    "mdt_question": "OnkMdtQuestion", "epikriza": "OnkEpikriza", "node_match": "OnkNodeMatch",
 }
 # Facts of these kinds are merged across documents (one node, many STATED_IN sources).
 MERGED_KINDS = {"condition", "medication", "allergy", "symptom", "contact_person", "referring_doctor"}

@@ -66,6 +66,11 @@ class CaseAnswer(BaseModel):
                                        description="Distinct numbers of the [D<number>] documents the answer is based on")
 
 
+class NodeFit(BaseModel):
+    matches: bool = Field(description="True only if this document is itself the report the step asks for")
+    quote: str = Field(default="", description="Exact substring of the document that shows it is that report")
+
+
 class BranchChoice(BaseModel):
     branch: str = Field(description="One of the allowed branch keys")
     quote: str | None = Field(default=None, description="Exact sentence from the input that supports the choice")
