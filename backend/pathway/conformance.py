@@ -1,11 +1,13 @@
 """Patient graph vs. pathway → step statuses, document status (green / red / yellow) and findings.
 
-Deterministic: every requirement is a fixed query against the patient's graph in IRIS (documents dated on/before
-the cut-off). The LLM is not involved.
+Every requirement is a fixed query against the patient's graph in IRIS (documents dated on/before the cut-off). The
+graph holds what the rules read and the step matches the LLM made (node_match facts, each with a verified quote);
+this module itself calls no LLM.
 
 Step status:      done | available | blocked | skipped
 Document status:  have (green) | missing (red) | conflict (yellow) | conditional (depends on an open decision)
-                  | skipped – only for steps that need a document as evidence
+                  | skipped (not needed for this patient) | waived (the coordinator went on without it)
+                  – only for steps that need a document as evidence
 
 Findings:
   to_schedule       – a required step has no evidence yet (e.g. book the CT)
@@ -34,6 +36,7 @@ class Ctx:
     decisions: dict[str, dict] = field(default_factory=dict)  # decision node → {"keys": [...], "on": date}
     reference_date: date | None = None  # for max_age lab checks (MDT date if known)
     reviewed_flags: set[str] = field(default_factory=set)
+    waived: dict[str, date] = field(default_factory=dict)  # document step → day the coordinator chose to go without it
     _snap: Snapshot | None = field(default=None, repr=False)
 
     @property
@@ -67,7 +70,8 @@ def check_requirement(req: dict, ctx: Ctx) -> tuple[bool, list[dict], dict]:
         return bool(rows), _ev(rows), {}
     if kind == "exam":
         types = req["exam_type"] if isinstance(req["exam_type"], list) else [req["exam_type"]]
-        rows = _facts(ctx, "exam", lambda f: f.get("exam_type") in types)
+        # an exam only reported inside another document (a CT quoted in a letter) is not the exam's report
+        rows = _facts(ctx, "exam", lambda f: f.get("exam_type") in types and not f.get("reported"))
         return bool(rows), _ev(rows), {}
     if kind == "diagnosis":
         rows = _facts(ctx, "diagnosis", lambda f: f.get("status") == req.get("status", "confirmed"))
@@ -174,12 +178,14 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
     for nid in pg.topo_order():
         node = pg.node(nid)
         st = {"status": "blocked", "done_on": None, "available_on": None, "due_on": None, "evidence": [], "detail": {},
-              "doc_status": None, "conflicts": [], "conditional": False}
+              "doc_status": None, "conflicts": [], "conditional": False, "branch_closed": False, "waived": False}
         gate, gate_on = _gate(nid, pg, ctx)
         pr_ids = preds.get(nid, [])
         pr = [status[x] for x in pr_ids]
-        if gate == "closed" or (pr and all(x["status"] == "skipped" for x in pr)):
-            st["status"] = "skipped"
+        # Only a branch the decision did not choose closes what follows it. A step skipped because this patient does
+        # not need it (no anticoagulant to stop) counts as done for the steps after it (see "ready" below).
+        if gate == "closed" or (pr and all(x["branch_closed"] for x in pr)):
+            st["status"], st["branch_closed"] = "skipped", True
         elif gate == "undecided" or (pr and all(x["conditional"] for x in pr)):
             st["conditional"] = True
         if st["status"] != "skipped":
@@ -208,6 +214,10 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
                         st["status"] = "done"
                         dates = [e["date"] for e in evidence if e.get("date")]
                         st["done_on"] = max(dates) if dates else None
+                    elif nid in ctx.waived:
+                        # the coordinator goes on without this document: it counts as done for the steps after it,
+                        # but stays visible as "waived" (never as "have")
+                        st["status"], st["done_on"], st["waived"] = "skipped", ctx.waived[nid], True
             elif node.completion == "manual":
                 if nid in ctx.events:
                     st["status"], st["done_on"] = "done", ctx.events[nid]
@@ -234,7 +244,7 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
             doc_ids = {e["doc_id"] for e in st["evidence"]}
             st["conflicts"] = _conflicts(flags, doc_ids)
             if st["status"] == "skipped":
-                st["doc_status"] = "skipped"
+                st["doc_status"] = "waived" if st["waived"] else "skipped"
             elif st["status"] == "done":
                 st["doc_status"] = "conflict" if any(not c["reviewed"] for c in st["conflicts"]) else "have"
             elif st["conditional"]:
@@ -283,7 +293,7 @@ def evaluate(pg: PathwayGraph, ctx: Ctx) -> dict:
     blocking_pre_mdt = [n.id for n in pg.nodes if n.phase in ("intake", "diagnostics") and n.blocking]
     evidence_nodes = [n.id for n in pg.nodes if n.completion == "evidence"]
     counts = {k: sum(1 for n in evidence_nodes if status[n]["doc_status"] == k)
-              for k in ("have", "missing", "conflict", "conditional", "skipped")}
+              for k in ("have", "missing", "conflict", "conditional", "skipped", "waived")}
     return {
         "nodes": status,
         "findings": findings,

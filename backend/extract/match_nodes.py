@@ -1,32 +1,38 @@
-"""Decide whether an uploaded document fulfills a pathway document-step.
+"""Decide which pathway document-steps an uploaded document fulfils.
 
-Uses the step's title + description (what the coordinator wrote) and the allowed file formats.
-A rule check runs first. The LLM is asked, with the step's title + description as its brief, when the rule is unsure
-and either the step lists a `described` requirement (it has no machine-readable test, e.g. "lung function tests"),
-or the parser could not classify the document (doc_type "other"). A document the parser did classify (a CT, a lab
-report…) is never re-judged by the LLM for a step that asks for a different exam – that is where a small model
-produced false positives.
+Two sources, both kept as node_match facts:
+  rule – the document's parsed type or exam equals what the step requires, or the step's title words appear in the
+         document title (cheap, deterministic);
+  llm  – the whole document goes to the LLM in ONE call together with every step it could fulfil (title and
+         description). The model judges each step by its own description, returns the steps whose required data the
+         document contains, each with a quote, and a step only counts when that quote is really in the document.
+         The same call returns the document's date, for documents whose layout the rules do not know.
 """
 from __future__ import annotations
 
 import logging
 import re
+from datetime import date
 
 from backend.extract import llm
 from backend.extract.pipeline import Fact
-from backend.extract.schemas import NodeFit
+from backend.extract.schemas import DocumentSteps
 from backend.extract.verify import quote_match
-from backend.ingest.reader import fold
+from backend.ingest.reader import fold, parse_date
 from backend.pathway.formats import format_ok
 
 log = logging.getLogger(__name__)
 
+MAX_TEXT = 12000  # characters of the document the model reads – a whole report fits
+
 _INSTRUCTION = (
-    "A cancer-pathway step needs the evidence its title and description ask for. Read them, then the document "
-    "(type, file name, title, excerpt). Return matches=true ONLY if this document itself contains that evidence – "
-    "the actual result or report, as the description defines it. A document that only says the exam was done, is "
-    "planned or was requested does not count, unless the description says it does. quote must be an exact "
-    "substring of the document text that proves it."
+    "You check one uploaded medical document against the steps of a cancer pathway. Read the whole document. For "
+    "each step, its description says which data it requires and what does not count. Judge every step ONLY by its "
+    "own description: return the steps whose required data this document contains, following the description's "
+    "rules exactly (if it says a mention in a letter does not count, a letter that only mentions the exam does not "
+    "fulfil it). A document may fulfil several steps or none. step_id must be one of the ids in the list. quote must "
+    "be an exact substring of the document that shows the required data. Also give the date the document itself was "
+    "written or issued."
 )
 
 
@@ -43,8 +49,6 @@ def _brief(node: dict) -> tuple[str, str]:
 
 def _rule_match(node: dict, doc_type: str, exam_type: str | None, filename: str, title: str) -> bool:
     """Strong overlap: required exam/doc type, or the step title words appear in the document title."""
-    if not format_ok(node.get("accepted_formats"), filename):
-        return False
     nt, _ = _brief(node)
     blob = fold(f"{title} {doc_type} {exam_type or ''} {filename}")
     for req in node.get("requires") or []:
@@ -59,34 +63,62 @@ def _rule_match(node: dict, doc_type: str, exam_type: str | None, filename: str,
     return bool(keys) and len(keys & _words(blob)) >= min(2, len(keys))
 
 
+def _llm_matches(steps: list[dict], *, doc_type: str, exam_type: str | None, filename: str, title: str,
+                 text: str) -> tuple[dict[str, str], date | None]:
+    """({step id: verified quote}, document date) as the LLM reads the document."""
+    listing = "\n\n".join(f"STEP {n['id']}: {_brief(n)[0]}\n{_brief(n)[1]}" for n in steps)
+    try:
+        found = llm.extract(DocumentSteps, _INSTRUCTION,
+                            f"PATHWAY STEPS:\n{listing}\n\n--- DOCUMENT ---\nFILE: {filename}\nTITLE: {title}\n"
+                            f"PARSED TYPE: {doc_type} / {exam_type or '-'}\n\n{text[:MAX_TEXT]}", max_tokens=1500)
+    except llm.LLMUnavailable:
+        log.info("LLM step matching skipped for %s: model offline", filename)
+        return {}, None
+    known = {n["id"] for n in steps}
+    out = {}
+    for m in found.steps:
+        if m.step_id in known and m.quote and quote_match(m.quote, text):
+            out[m.step_id] = m.quote[:300]
+        elif m.step_id in known:
+            log.info("LLM matched %s to %s without a verifiable quote – ignored", filename, m.step_id)
+    return out, parse_date(found.document_date or "")
+
+
 def match_document(nodes: list[dict], *, doc_type: str, exam_type: str | None, filename: str,
                    title: str, excerpt: str) -> list[Fact]:
-    """Return node_match facts for every evidence step this document fulfills."""
+    """Return node_match facts for every evidence step this document fulfils."""
+    return match(nodes, doc_type=doc_type, exam_type=exam_type, filename=filename, title=title, excerpt=excerpt)[0]
+
+
+def _exam_types(node: dict) -> set[str]:
+    return {t for r in node.get("requires") or [] if r.get("kind") == "exam"
+            for t in ([r["exam_type"]] if isinstance(r.get("exam_type"), str) else r.get("exam_type") or [])}
+
+
+def match(nodes: list[dict], *, doc_type: str, exam_type: str | None, filename: str, title: str, excerpt: str,
+          reported: set[str] | frozenset = frozenset()) -> tuple[list[Fact], date | None]:
+    """node_match facts for every evidence step this document fulfils, and the document's date as the LLM read it.
+
+    `reported`: exam types whose result this document only quotes (the whole-document pass said so, e.g. the CT in a
+    referral letter). A step that asks for one of those exams is not offered: this document is not that exam's report,
+    so the model cannot contradict itself from one prompt wording to the next."""
+    # every step that needs a document and accepts this file; "prior reports" is checked against the referral instead
+    steps = [n for n in nodes if n.get("completion") == "evidence" and format_ok(n.get("accepted_formats"), filename)
+             and not any(r.get("kind") == "mentioned_exams_received" for r in n.get("requires") or [])
+             and not (_exam_types(n) and _exam_types(n) <= set(reported) and exam_type not in _exam_types(n))]
     facts: list[Fact] = []
-    for node in nodes:
-        if node.get("completion") != "evidence":
-            continue
-        if not format_ok(node.get("accepted_formats"), filename):
-            continue
-        title_n, desc = _brief(node)
-        hit = _rule_match(node, doc_type, exam_type, filename, title)
-        method, quote = "rule", title or filename
-        described = any(r.get("kind") == "described" for r in node.get("requires") or [])
-        unclassified = doc_type == "other" and not exam_type
-        if not hit and desc and (described or unclassified):
-            try:
-                fit = llm.extract(NodeFit, _INSTRUCTION,
-                                       f"STEP TITLE: {title_n}\nSTEP DESCRIPTION: {desc}\n"
-                                       f"ALLOWED FORMATS: {', '.join(node.get('accepted_formats') or ['any'])}\n"
-                                       f"DOCUMENT TYPE: {doc_type}\nEXAM: {exam_type or '—'}\n"
-                                       f"FILE: {filename}\nDOCUMENT TITLE: {title}\n\n--- DOCUMENT ---\n{excerpt[:2500]}")
-                qm = quote_match(fit.quote, excerpt) if fit.quote else None
-                if fit.matches and (qm or not excerpt.strip()):
-                    hit, method, quote = True, "llm", (fit.quote or title)[:300]
-            except llm.LLMUnavailable:
-                log.info("skip LLM node match for %s: model offline", node.get("id"))
-        if hit:
-            facts.append(Fact(kind="node_match", key=node["id"],
-                              props={"node_id": node["id"], "label": node.get("label") or title_n},
-                              quote=quote, match="exact" if method == "rule" else "approx", method=method))
-    return facts
+
+    def add(node: dict, quote: str, method: str) -> None:
+        facts.append(Fact(kind="node_match", key=node["id"],
+                          props={"node_id": node["id"], "label": node.get("label") or _brief(node)[0]},
+                          quote=quote, match="exact" if method == "rule" else "approx", method=method))
+
+    ruled = [n for n in steps if _rule_match(n, doc_type, exam_type, filename, title)]
+    for n in ruled:
+        add(n, title or filename, "rule")
+    by_llm, doc_date = _llm_matches(steps, doc_type=doc_type, exam_type=exam_type, filename=filename, title=title,
+                                    text=excerpt) if steps and excerpt.strip() else ({}, None)
+    for n in steps:
+        if n["id"] in by_llm and n not in ruled:
+            add(n, by_llm[n["id"]], "llm")
+    return facts, doc_date

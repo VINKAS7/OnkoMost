@@ -19,7 +19,7 @@ export type CaseSummary = {
   suspected_diagnosis: string; referring_doctor: Record<string, string>;
   created_on: string; accepted_on: string | null; mdt_date: string | null; closed_on: string | null;
   decisions: Record<string, { keys: string[]; on: string; by: string }>; treatments: string[];
-  doc_counts: { have?: number; missing?: number; conflict?: number; conditional?: number; skipped?: number };
+  doc_counts: { have?: number; missing?: number; conflict?: number; conditional?: number; skipped?: number; waived?: number };
   feedback?: Message | null; documents_count?: number; thread?: CaseMessage[];
   state: string; state_index: number; queue: "new" | "active" | "on_hold" | "closed";
   next_task: Task | null; open_tasks: number; overdue_tasks: number; days_since_referral: number;
@@ -39,9 +39,11 @@ export type PathwayNode = {
   available_on?: string | null; owner_name?: string;
   evidence?: { doc_id: number; title: string; date: string; quote: string }[];
   detail?: { items?: unknown[]; missing?: { label: string; date: string; place: string }[]; keys?: string[] };
-  doc_status?: "have" | "missing" | "conflict" | "conditional" | "skipped" | null;
+  doc_status?: "have" | "missing" | "conflict" | "conditional" | "skipped" | "waived" | null;
+  waived?: { by: string; on: string; reason: string } | null;  // the coordinator went on without this document
   conflicts?: { key: string; doc_id: number; title: string; message: string; message_en: string; reviewed: boolean }[];
   conditional?: boolean;
+  images?: { doc_id: number; title: string; date: string | null }[];  // image series for this exam (not evidence)
 };
 export type PathwayEdge = { source: string; target: string; label?: string; branch?: string | null };
 export type PathwayGraph = { nodes: PathwayNode[]; edges: PathwayEdge[] };
@@ -57,7 +59,10 @@ export type DocumentRow = {
   doc_date: string | null; facility: string; author: string;
   identity: { ok?: boolean; issues?: string[]; matched_on?: string[] };
   summary: { facts?: Record<string, number>; unverified?: number; llm_items?: number; llm_calls?: number;
-             llm_errors?: string[]; flags?: number };
+             llm_errors?: string[]; flags?: number;
+             // an image series (doc_type "image_series"): what the DICOM headers say
+             series?: { modality: string; body_part: string; slices: number; study_date: string | null;
+                        manufacturer: string; identity_removed: boolean } };
   uploaded_on: string; post_mdt: boolean;
 };
 

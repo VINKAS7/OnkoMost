@@ -163,7 +163,9 @@ def build(patient_uuid: str, cutoff: date, entries: list[dict] | None = None, re
     exams = sorted((e for e in facts.get("exam", []) if e["props"].get("exam_type") != "lab"),
                    key=lambda e: e["props"].get("date") or date.min)
     field("exams", "results", "Provedená vyšetření",
-          [item(f"{_fmt_date(e['props'].get('date'))} · {e['props'].get('place')} · {e['props'].get('label')}",
+          [item(f"{_fmt_date(e['props'].get('date'))} · "
+                f"{e['props'].get('place') or ('uvedeno v: ' + str(e['props'].get('reported_in')) if e['props'].get('reported') else '')}"
+                f" · {e['props'].get('label')}",
                 e["sources"], date=e["props"].get("date"), place=e["props"].get("place"), type=e["props"].get("label"),
                 result=e["props"].get("result_text"), conclusion=e["props"].get("conclusion"))
            for e in exams if e["props"].get("exam_type") != "histology"])

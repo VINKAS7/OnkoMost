@@ -22,9 +22,10 @@ from backend.config import ROOT, settings
 from backend.extract.pipeline import extract_document
 from backend.fhir import records
 from backend.graph.store import graph
+from backend.ingest import dicom
 from backend.ingest.classify import classify
-from backend.ingest.identity import check_identity, patient_uuid, rc_info
-from backend.ingest.reader import fold, read_document
+from backend.ingest.identity import check_dicom_identity, check_identity, patient_uuid, rc_info
+from backend.ingest.reader import all_dates, fold, read_document
 from backend.pathway.conformance import Ctx, evaluate
 from backend.pathway.model import ROLES, validate
 from backend.reports import feedback as fb
@@ -144,6 +145,7 @@ def create_referral(koc_id: int, files: list[tuple[str, bytes]], actor: str = "R
         raise WorkflowError("Rodné číslo musí mít tvar 123456/7890 / Birth number must look like 123456/7890.")
     if rc and "/" not in rc:
         rc = f"{rc[:6]}/{rc[6:]}"
+    files, series, skipped = dicom.split(files)  # a CT folder becomes one series per scan, read after the case exists
     tmp = settings.raw_dir / "_incoming"
     tmp.mkdir(parents=True, exist_ok=True)
     parsed = []
@@ -198,9 +200,11 @@ def create_referral(koc_id: int, files: list[tuple[str, bytes]], actor: str = "R
                     created_on=h.get("doc_date") or today(s))
         s.add(case)
         s.flush()
-        audit(s, "case.created", actor, case.id, koc=koc.code, pathway_version=version.version, files=[p[0] for p in parsed])
+        audit(s, "case.created", actor, case.id, koc=koc.code, pathway_version=version.version,
+              files=[p[0] for p in parsed] + [x.filename for x in series], skipped=skipped)
         doc_ids = [_add_document(s, case, name, data, "referral" if p is referral else "upload")
                    for p in parsed for name, data in [(p[0], p[1])]]
+        doc_ids += [_add_document(s, case, x.filename, x.data, "upload") for x in series]
         case_id = case.id
     for d in doc_ids:
         enqueue(d, sync)
@@ -218,6 +222,17 @@ def _add_document(s: Session, case: Case, filename: str, data: bytes, source: st
     audit(s, "document.uploaded", "coordinator" if source != "referral" else "referring doctor", case.id,
           filename=filename, sha256=sha)
     return d.id
+
+
+def add_documents(case_id: int, files: list[tuple[str, bytes]], source: str = "upload", actor: str = "koordinátor",
+                  sync: bool = False) -> list[int]:
+    """Several uploads at once: CT / MRI slices are grouped into one document per series."""
+    reports, series, skipped = dicom.split(files)
+    if skipped:
+        with session_scope() as s:
+            audit(s, "document.skipped", actor, case_id, files=skipped, reason="not a report, next to image files")
+    return ([add_document(case_id, n, d, source, actor, sync) for n, d in reports]
+            + [add_document(case_id, x.filename, x.data, source, actor, sync) for x in series])
 
 
 def add_document(case_id: int, filename: str, data: bytes, source: str = "upload", actor: str = "koordinátor",
@@ -248,6 +263,9 @@ def process_document(doc_id: int) -> None:
         path, p_uuid = _abs(d.path), case.patient_uuid
         ident = case.identity
         case_rc, case_name, case_dob = ident.get("rc", ""), ident.get("patient_name", ""), ident.get("dob")
+        is_series = d.filename.lower().endswith(dicom.SUFFIX)  # stored as <sha>.zip, so ask the upload name
+    if is_series:
+        return _process_series(doc_id, path, p_uuid, case_name, case_dob)
     try:
         doc = read_document(path)
         ident = check_identity(doc.header, case_rc, case_name, case_dob)
@@ -270,15 +288,32 @@ def process_document(doc_id: int) -> None:
             d.doc_type, d.title, d.doc_date = x.doc_type, x.title, x.doc_date
             d.facility, d.author, d.summary = x.facility, x.author, x.summary()
             if x.doc_type != "mdt_conclusion":
-                from backend.extract.match_nodes import match_document
+                from backend.extract.match_nodes import match
                 case = s.get(Case, d.case_id)
                 try:
-                    extras = match_document(
+                    extras, llm_date = match(
                         (case.pathway_version.graph_json or {}).get("nodes") or [],
                         doc_type=x.doc_type, exam_type=x.exam_type, filename=d.filename,
-                        title=x.title, excerpt=doc.full_text)
+                        title=x.title, excerpt=doc.markdown or doc.full_text,
+                        reported={f.props["exam_type"] for f in x.facts if f.kind == "exam" and f.props.get("reported")})
                 except Exception:  # noqa: BLE001
-                    extras = []
+                    log.exception("step matching failed for document %s", doc_id)
+                    extras, llm_date = [], None
+                if not x.doc_date:
+                    # an unfamiliar layout: the date as the LLM read it from the document; else the newest date the
+                    # document mentions (a letter is not older than the results it quotes); else the upload day (flagged).
+                    # The pathway only counts dated documents, so an undated one would never turn a step green.
+                    mentioned = [m for m, _, _ in all_dates(doc.full_text) if m <= d.uploaded_on]
+                    x.doc_date = llm_date or (max(mentioned) if mentioned else d.uploaded_on)
+                    if not llm_date and not mentioned:
+                        x.flags.append({"rule": "document_date_missing", "quote": d.filename,
+                                        "message": "Datum dokumentu nenalezeno – použito datum nahrání. Ověřte datum.",
+                                        "message_en": "No date found in the document – the upload date is used. "
+                                                      "Please check the date."})
+                    for f in x.facts:
+                        if "date" in f.props and not f.props["date"]:
+                            f.props["date"] = x.doc_date
+                    d.doc_date = x.doc_date
                 x.facts.extend(extras)
                 x.llm_calls += sum(1 for f in extras if f.method == "llm")
                 doc_uid = f"{p_uuid}:{d.sha256}"
@@ -296,6 +331,49 @@ def process_document(doc_id: int) -> None:
                     audit(s, "doc_request.received", "system", d.case_id, item=r.item, doc_id=d.id)
             audit(s, "document.extracted", "LLM + pravidla", d.case_id, doc_id=doc_id, doc_type=x.doc_type,
                   **x.summary())
+        case_id = d.case_id
+    refresh(case_id)
+
+
+MODALITY_CS = {"CT": "CT", "MR": "MR", "PT": "PET"}
+
+
+def _process_series(doc_id: int, path: Path, p_uuid: str, case_name: str, case_dob: date | None) -> None:
+    """A CT / MRI / PET series: read the DICOM headers, check identity, index it in IRIS and FHIR. No LLM, no text."""
+    try:
+        meta = dicom.series_meta(path)
+        ident = check_dicom_identity(meta, case_name, case_dob)
+    except Exception as e:  # noqa: BLE001
+        with session_scope() as s:
+            d = s.get(Document, doc_id)
+            d.status, d.error = "error", str(e)
+            audit(s, "document.error", "system", d.case_id, doc_id=doc_id, error=str(e))
+        raise
+    with session_scope() as s:
+        d = s.get(Document, doc_id)
+        # de-identified images often have shifted dates (the example CT says 2006): use the upload day instead
+        doc_date = d.uploaded_on if meta["identity_removed"] or not meta["study_date"] else meta["study_date"]
+        body = meta["body_part"].lower() if meta["body_part"] else ""
+        title = f"{MODALITY_CS.get(meta['modality'], meta['modality'])} snímky{' – ' + body if body else ''} ({meta['slices']} řezů)"
+        d.identity, d.doc_type, d.title, d.doc_date, d.facility = ident, "image_series", title, doc_date, meta["manufacturer"]
+        d.summary = {"series": {k: meta[k] for k in ("modality", "body_part", "slices", "rows", "columns", "slice_thickness",
+                                                      "description", "manufacturer", "identity_removed")}
+                     | {"study_date": meta["study_date"].isoformat() if meta["study_date"] else None}}
+        if not ident["ok"]:
+            d.status = "blocked"
+            audit(s, "document.blocked", "system", d.case_id, doc_id=doc_id, issues=ident["issues"])
+        else:
+            doc_uid = f"{p_uuid}:{d.sha256}"
+            graph.delete_document(doc_uid)
+            graph.write_document(p_uuid, doc_uid, {
+                "type": "image_series", "exam_type": meta["exam_type"], "title": title, "date": doc_date,
+                "facility": meta["manufacturer"], "filename": d.filename, "sqlite_id": d.id, "sha256": d.sha256},
+                [{"kind": "image_series", "key": meta["series_uid"][-24:], "method": "rule",
+                  "props": {"modality": meta["modality"], "exam_type": meta["exam_type"], "body_part": meta["body_part"],
+                            "slices": meta["slices"], "date": doc_date}}], [], imaging=meta)
+            d.status = "done"
+            audit(s, "document.extracted", "DICOM", d.case_id, doc_id=doc_id, doc_type="image_series",
+                  slices=meta["slices"], modality=meta["modality"])
         case_id = d.case_id
     refresh(case_id)
 
@@ -319,12 +397,14 @@ def _owner_name(case: Case, koc: Koc, role: str, facility: str = "") -> str:
 
 
 def _ctx(s: Session, case: Case) -> Ctx:
-    events = {e.node_id: e.on for e in s.scalars(select(StepEvent).where(StepEvent.case_id == case.id))}
+    rows = list(s.scalars(select(StepEvent).where(StepEvent.case_id == case.id)))
+    events = {e.node_id: e.on for e in rows if not (e.data or {}).get("waived")}
+    waived = {e.node_id: e.on for e in rows if (e.data or {}).get("waived")}
     decisions = {k: {**v, "on": date.fromisoformat(v["on"]) if v.get("on") else None}
                  for k, v in (case.decisions or {}).items()}
     reviewed = {r.flag_key for r in s.scalars(select(FlagReview).where(FlagReview.case_id == case.id))}
     return Ctx(patient_uuid=case.patient_uuid, cutoff=today(s), created_on=case.created_on, events=events,
-               decisions=decisions, reference_date=case.mdt_date, reviewed_flags=reviewed)
+               decisions=decisions, reference_date=case.mdt_date, reviewed_flags=reviewed, waived=waived)
 
 
 def _entries(s: Session, case_id: int) -> list[dict]:
@@ -491,13 +571,26 @@ def case_detail(case_id: int) -> dict:
         cutoff = today(s)
         summary = case_summary(s, case, result)
         pg = case.pathway_version.graph_json
+        # image series are shown on the step that asks for that exam; only the radiologist's report completes it
+        series = [d for d in s.scalars(select(Document).where(Document.case_id == case_id, Document.status == "done",
+                                                              Document.doc_type == "image_series"))]
+
+        def images(n: dict) -> list[dict]:
+            wanted = {t for r in n.get("requires") or [] if r.get("kind") == "exam"
+                      for t in ([r["exam_type"]] if isinstance(r.get("exam_type"), str) else r.get("exam_type") or [])}
+            return [{"doc_id": d.id, "title": d.title, "date": d.doc_date} for d in series
+                    if dicom.EXAM_TYPE.get((d.summary or {}).get("series", {}).get("modality")) in wanted]
+
+        waivers = {e.node_id: {"by": e.by, "on": e.on, "reason": (e.data or {}).get("reason", "")}
+                   for e in s.scalars(select(StepEvent).where(StepEvent.case_id == case_id)) if (e.data or {}).get("waived")}
         nodes = []
         for n in pg["nodes"]:
             st = result["nodes"][n["id"]]
             nodes.append({**n, **{k: st[k] for k in ("status", "done_on", "available_on", "due_on", "evidence",
                                                      "doc_status", "conflicts", "conditional")},
                           "detail": {k: v for k, v in st["detail"].items() if k in ("items", "missing", "keys")},
-                          "owner_name": _owner_name(case, case.koc, n.get("owner_role", "coordinator"))})
+                          "owner_name": _owner_name(case, case.koc, n.get("owner_role", "coordinator")),
+                          "images": images(n), "waived": waivers.get(n["id"]) if st["waived"] else None})
         tasks = sorted((_task_dict(t, cutoff) for t in s.scalars(select(Task).where(Task.case_id == case_id))),
                        key=lambda t: (t["status"] not in ("open", "scheduled"), t["external"], PRIO.get(t["priority"], 1),
                                       t["due_on"] or date.max))
@@ -598,6 +691,48 @@ def complete_step(case_id: int, node_id: str, by: str, note: str = "") -> None:
             case.k2_handover_on = today(s)
         audit(s, f"step.{node_id}.done", by, case_id, note=note)
     refresh(case_id)
+
+
+def _waivable(case: Case, node_id: str) -> dict:
+    node = next((n for n in case.pathway_version.graph_json["nodes"] if n["id"] == node_id), None)
+    if not node or node.get("completion") != "evidence" or node.get("type") == "start":
+        raise WorkflowError("Tento krok nelze vynechat / This step cannot be waived")
+    return node
+
+
+def waive_step(case_id: int, node_id: str, by: str, reason: str = "") -> None:
+    """The coordinator goes on without a document (e.g. for a demonstration). Audited and shown to the MDT."""
+    with session_scope() as s:
+        case = s.get(Case, case_id)
+        _waivable(case, node_id)
+        if not s.scalars(select(StepEvent).where(StepEvent.case_id == case_id, StepEvent.node_id == node_id)).first():
+            s.add(StepEvent(case_id=case_id, node_id=node_id, on=today(s), by=by, data={"waived": True, "reason": reason}))
+        audit(s, "step.waived", by, case_id, node=node_id, reason=reason)
+    refresh(case_id)
+
+
+def unwaive_step(case_id: int, node_id: str, by: str) -> None:
+    with session_scope() as s:
+        for e in s.scalars(select(StepEvent).where(StepEvent.case_id == case_id, StepEvent.node_id == node_id)):
+            if (e.data or {}).get("waived"):
+                s.delete(e)
+        audit(s, "step.unwaived", by, case_id, node=node_id)
+    refresh(case_id)
+
+
+def waive_missing(case_id: int, by: str, reason: str = "") -> list[str]:
+    """Waive every required pre-MDT document that is still missing, so the case can go on (demonstrations)."""
+    with session_scope() as s:
+        case = s.get(Case, case_id)
+        pg = validate(case.pathway_version.graph_json)
+        result = evaluate(pg, _ctx(s, case))
+        ids = [n.id for n in pg.nodes if n.completion == "evidence" and n.type != "start" and n.blocking
+               and n.phase in ("intake", "diagnostics") and result["nodes"][n.id]["doc_status"] == "missing"]
+        for nid in ids:
+            s.add(StepEvent(case_id=case_id, node_id=nid, on=today(s), by=by, data={"waived": True, "reason": reason}))
+        audit(s, "step.waived", by, case_id, nodes=ids, reason=reason)
+    refresh(case_id)
+    return ids
 
 
 def schedule_task(task_id: int, on: date | None, place: str, by: str) -> int:
@@ -867,6 +1002,7 @@ def delete_case(case_id: int) -> None:
             s.delete(m)
         for d in s.scalars(select(Document).where(Document.case_id == case_id)):
             s.delete(d)
+        s.flush()  # the models have no relationships, so the unit of work would not order these before the case
         s.delete(case)
         others = s.scalars(select(Case).where(Case.patient_uuid == p_uuid)).first()
     if not others:

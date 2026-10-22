@@ -236,6 +236,35 @@ def test_mdt_summary_for_the_sample_case(fresh):
         assert s_.query(AuditLog).filter_by(case_id=case_id, action="mdt.summary_exported").count() == 2
 
 
+def test_example_patient_with_ct_folder(fresh):
+    """example/Josef_Kral as a GP would send it: the reports plus the CT export folder (114 slices + a LICENSE)."""
+    from backend.config import ROOT
+    from backend.fhir.client import fhir
+    from backend.ingest import dicom
+    from backend.ingest.identity import NO_IDENTITY_IN_IMAGES, patient_uuid
+    ex = ROOT / "example" / "Josef_Kral"
+    files = [(p.name, p.read_bytes()) for p in sorted((ex / "zpravy").glob("*.docx"))]
+    files += [(p.name, p.read_bytes()) for p in sorted((ex / "ct" / "LUNG1-131_CT_DICOM").iterdir())]
+    seed()
+    case_id = svc.create_referral(2, files, sync=True, pathway_id=seed_demo.pathway_id("lung"),
+                                  patient_name="Josef Král", rc="550814/1023")
+    d = _detail(case_id)
+    docs = {x["doc_type"]: x for x in d["documents"]}
+    assert len(d["documents"]) == 6 and all(x["status"] == "done" for x in d["documents"])  # 5 reports + 1 series
+    ct = docs["image_series"]
+    assert ct["summary"]["series"]["slices"] == 114 and ct["identity"]["issues"] == [NO_IDENTITY_IN_IMAGES]
+    assert ct["doc_date"] == ct["uploaded_on"]  # de-identified: the 2006 date in the images is not used
+    nodes = {n["id"]: n for n in d["pathway_graph"]["nodes"]}
+    assert nodes["ct"]["doc_status"] == "have"  # completed by the radiologist's report…
+    assert [i["doc_id"] for i in nodes["ct"]["images"]] == [ct["id"]]  # …the images are shown with it
+    studies = list(fhir.search("ImagingStudy", patient=patient_uuid("550814/1023")))
+    assert len(studies) == 1 and studies[0]["numberOfInstances"] == 114
+    with session_scope() as s:
+        from backend.workflow.db import Document
+        path = svc._abs(s.get(Document, ct["id"]).path)
+    assert dicom.render(str(path), 57, "lung").startswith(b"\x89PNG")
+
+
 def test_graphrag_finds_tumour_marker(fresh):
     case_id = seed_demo.run("closed")  # includes the post-MDT pain (26. 10.) and psychology (27. 10.) reports
     from backend.rag.ask import retrieve

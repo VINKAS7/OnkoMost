@@ -46,7 +46,8 @@ def build_report(case, koc, patient_uuid: str, mdt_date: date, entries: list[dic
     for e in sorted(facts.get("exam", []), key=lambda e: e["props"].get("date") or date.min):
         p = e["props"]
         result = p.get("conclusion") or ""
-        rows.append({"date": p.get("date"), "exam": f"{p.get('label')} ({p.get('place')})", "result": result,
+        where = p.get("place") or (f"uvedeno v: {p['reported_in']}" if p.get("reported") else "")
+        rows.append({"date": p.get("date"), "exam": f"{p.get('label')} ({where})" if where else p.get("label"), "result": result,
                      "doc_id": e["sources"][0]["doc_id"] if e["sources"] else None})
     excluded = [d for d in graph.documents(patient_uuid) if d["d"].get("date") and d["d"]["date"] > mdt_date]
 

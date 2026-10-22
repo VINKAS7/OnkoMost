@@ -4,6 +4,7 @@
                      address, phone
   RelatedPerson      contact persons (name, relation, phone) with the sentence they were read from
   DocumentReference  every received document: metadata, the extracted text and the original file
+  ImagingStudy       every CT / MRI / PET series: study and series UIDs, modality, body part, date and its slices
 
 The patient graph (IRIS globals), the GraphRAG chunks and the workflow database only keep the pseudonymous
 patient_uuid and point here for identity.
@@ -115,7 +116,7 @@ def upsert_patient(uuid: str, props: dict) -> dict:
 
 
 def delete_patient(uuid: str) -> None:
-    for rtype in ("DocumentReference", "RelatedPerson"):
+    for rtype in ("ImagingStudy", "DocumentReference", "RelatedPerson"):
         for res in list(fhir.search(rtype, patient=uuid, _elements="id")):
             fhir.delete(rtype, res["id"])
     fhir.delete("Patient", uuid)
@@ -206,6 +207,39 @@ def upsert_document(uuid: str, doc_uid: str, meta: dict, text: str = "", origina
 
 def delete_document(doc_uid: str) -> None:
     fhir.delete("DocumentReference", _rid("doc", doc_uid))
+    fhir.delete("ImagingStudy", _rid("img", doc_uid))
+
+
+# -- ImagingStudy (CT / MRI / PET series) ------------------------------------------------------------
+
+DCM = "http://dicom.nema.org/resources/ontology/DCM"
+
+
+def upsert_imaging_study(uuid: str, doc_uid: str, meta: dict) -> str:
+    """The index of one image series. The pixels stay in storage/raw, as they would in a hospital PACS."""
+    rid = _rid("img", doc_uid)
+    modality = {"system": DCM, "code": meta.get("modality") or "OT"}
+    res: dict = {
+        "resourceType": "ImagingStudy", "id": rid, "status": "available",
+        "subject": {"reference": f"Patient/{uuid}"},
+        "identifier": [{"system": EXT + "document-uid", "value": doc_uid}],
+        "modality": [modality], "numberOfSeries": 1, "numberOfInstances": meta.get("slices") or 0,
+        "series": [{"uid": meta["series_uid"], "number": 1, "modality": modality,
+                    "numberOfInstances": meta.get("slices") or 0,
+                    "instance": [{"uid": i["uid"], "number": i["number"],
+                                  "sopClass": {"system": "urn:ietf:rfc:3986", "code": f"urn:oid:{i['sop_class']}"}}
+                                 for i in meta.get("instances", []) if i.get("uid")]}],
+    }
+    if meta.get("study_uid"):
+        res["identifier"].append({"system": "urn:dicom:uid", "value": f"urn:oid:{meta['study_uid']}"})
+    if isinstance(meta.get("study_date"), date):
+        res["started"] = meta["study_date"].isoformat()
+    if meta.get("description") or meta.get("body_part"):
+        res["description"] = meta.get("description") or meta["body_part"]
+    if meta.get("body_part"):
+        res["series"][0]["bodySite"] = {"display": meta["body_part"]}
+    fhir.put(res)
+    return f"ImagingStudy/{rid}"
 
 
 def forget_cache() -> None:

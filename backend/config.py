@@ -53,6 +53,7 @@ class Settings:
     sample_data_dir: Path = Path(os.getenv("SAMPLE_DATA_DIR", str(ROOT / "sample")))
     raw_dir: Path = ROOT / "storage" / "raw"
     llm_cache_dir: Path = ROOT / "storage" / "llm_cache"
+    docling_models_dir: Path = Path(os.getenv("DOCLING_MODELS_DIR") or ROOT / "storage" / "docling-models")
     reports_dir: Path = ROOT / "storage" / "reports"
 
 
@@ -81,6 +82,16 @@ def check() -> bool:
     except Exception as e:  # noqa: BLE001
         ok = False
         print(f"[FAIL] FHIR {settings.fhir_base_url}: {e}")
+    models = settings.docling_models_dir
+    try:
+        import docling  # noqa: F401
+        if (models / "EasyOcr").is_dir():
+            print(f"[ok]   Docling: models in {models}")
+        else:
+            print(f"[warn] Docling: models not downloaded yet – the first document downloads them into {models} (~800 MB)")
+    except ImportError as e:
+        ok = False
+        print(f"[FAIL] Docling is not installed (pip install -r requirements.txt): {e}")
     from backend.extract import llm
     try:
         reply = llm.write("Odpověz jedním slovem: funguješ?", "-", max_tokens=10)

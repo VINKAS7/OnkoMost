@@ -136,7 +136,7 @@ def delete_case(case_id: int):
 @app.post("/api/cases/{case_id}/documents")
 async def upload(case_id: int, files: list[UploadFile] = File(...), source: str = Form("upload"),
                  actor: str = Form("koordinátor")):
-    ids = [svc.add_document(case_id, f.filename, await f.read(), source, actor) for f in files]
+    ids = svc.add_documents(case_id, [(f.filename, await f.read()) for f in files], source, actor)
     return ok({"document_ids": ids})
 
 
@@ -149,6 +149,32 @@ def raw(doc_id: int):
         path = svc._abs(d.path)
         name = d.filename
     return FileResponse(path, filename=name)
+
+
+def _series_path(doc_id: int):
+    with session_scope() as s:
+        d = s.get(Document, doc_id)
+        if not d or d.doc_type != "image_series":
+            raise HTTPException(404, "not an image series")
+        return svc._abs(d.path), d.status
+
+
+@app.get("/api/documents/{doc_id}/series")
+def series(doc_id: int):
+    """Meta of a CT / MRI / PET series for the viewer (no pixels, no instance list)."""
+    from backend.ingest import dicom
+    path, status = _series_path(doc_id)
+    meta = {k: v for k, v in dicom.series_meta(path).items() if k not in ("instances", "patient_name", "patient_id",
+                                                                           "birth_date")}
+    return ok({**meta, "windows": list(dicom.WINDOWS), "status": status})
+
+
+@app.get("/api/documents/{doc_id}/slice/{index}.png")
+def series_slice(doc_id: int, index: int, window: str = "lung"):
+    from backend.ingest import dicom
+    path, _ = _series_path(doc_id)
+    return Response(dicom.render(str(path), index, window), media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=3600"})
 
 
 @app.post("/api/documents/{doc_id}/reprocess")
@@ -172,6 +198,30 @@ def accept(case_id: int, body: ActorIn):
 def complete(case_id: int, node_id: str, body: ActorIn):
     svc.complete_step(case_id, node_id, body.by, body.note)
     return ok()
+
+
+class WaiveIn(BaseModel):
+    by: str = "koordinátor"
+    reason: str = ""
+
+
+@app.post("/api/cases/{case_id}/steps/{node_id}/waive")
+def waive(case_id: int, node_id: str, body: WaiveIn):
+    """Go on without this document (demonstrations). Shown as "waived" to everyone, including the MDT."""
+    svc.waive_step(case_id, node_id, body.by, body.reason)
+    return ok()
+
+
+@app.post("/api/cases/{case_id}/steps/{node_id}/unwaive")
+def unwaive(case_id: int, node_id: str, body: WaiveIn):
+    svc.unwaive_step(case_id, node_id, body.by)
+    return ok()
+
+
+@app.post("/api/cases/{case_id}/waive-missing")
+def waive_missing(case_id: int, body: WaiveIn):
+    """Waive every required pre-MDT document still missing, so the case is complete (demonstrations)."""
+    return ok({"waived": svc.waive_missing(case_id, body.by, body.reason)})
 
 
 class RequestIn(BaseModel):
@@ -521,7 +571,7 @@ def update_draft(version_id: int, body: DraftIn):
 @app.post("/api/pathway-versions/validate")
 def validate_graph(body: dict):
     try:
-        validate(body)
+        validate(body, editing=True)
         return ok({"valid": True})
     except ValueError as e:
         return ok({"valid": False, "error": str(e)})

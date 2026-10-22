@@ -27,7 +27,7 @@ export type DocCategory = (typeof DOC_CATEGORIES)[number];
 
 export function docCategory(docType: string): DocCategory {
   if (docType === "referral" || docType === "gp_summary") return "referral";
-  if (docType === "imaging") return "imaging";
+  if (docType === "imaging" || docType === "image_series") return "imaging";
   if (docType === "lab") return "lab";
   if (docType === "procedure" || docType === "histology") return "pathology";
   if (docType === "mdt_conclusion") return "mdt";

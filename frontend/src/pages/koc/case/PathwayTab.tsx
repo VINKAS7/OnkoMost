@@ -29,7 +29,16 @@ function TaskRow({ task, c, reload, go, msgs }: { task: Task; c: CaseDetail; rel
     if (task.key === "step:triage") action = <button className="primary sm" disabled={busy} onClick={() => run(() => api.post(`/api/cases/${c.id}/accept`, { by: actor }), "✓", reload)}>{t("act.accept")}</button>;
     else if (task.kind === "missing_document" && !task.external) action = <button className="sm" disabled={busy} onClick={() => run(() => api.post(`/api/cases/${c.id}/doc-requests`, { finding_key: task.key, by: actor }), "✓", reload)}>{t("act.request")}</button>;
     else if (task.kind === "missing_document") action = <button className="sm ghost" onClick={() => go("documents")}>{t("act.upload")}</button>;
-    else if (task.kind === "to_schedule") action = <button className="sm" onClick={() => setForm(form === "schedule" ? null : "schedule")}>{task.status === "scheduled" ? t("act.rebook") : t("act.book")}</button>;
+    else if (task.kind === "to_schedule") action = (
+      <span className="row">
+        <button className="sm" onClick={() => setForm(form === "schedule" ? null : "schedule")}>{task.status === "scheduled" ? t("act.rebook") : t("act.book")}</button>
+        {node?.completion === "evidence" && (
+          <button className="sm ghost" disabled={busy} title={t("waive.hint")}
+            onClick={() => run(() => api.post(`/api/cases/${c.id}/steps/${node.id}/waive`, { by: actor, reason: t("waive.reason") }), t("waive.done"), reload)}>
+            {t("waive.btn")}</button>
+        )}
+      </span>
+    );
     else if (task.kind === "mismatch") action = <button className="sm" onClick={() => setForm(form === "review" ? null : "review")}>{t("act.review")}</button>;
     else if (task.kind === "missing_field") action = <span className="row"><button className="sm" onClick={() => msgs?.current?.askGp()}>{t("msg.askGp")}</button><button className="sm ghost" onClick={() => go("handover")}>{t("act.fill")}</button></span>;
     else if (task.kind === "question" && !task.external) action = <button className="primary sm" onClick={() => msgs?.current?.reply("review", Number(task.key.split(":")[1]))}>{t("msg.reply")}</button>;
@@ -89,13 +98,21 @@ function DecisionBlock({ node, c, reload }: { node: PathwayNode; c: CaseDetail; 
 }
 
 export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: () => void; go: (tab: string) => void }) {
-  const { t, pick } = useApp();
+  const { t, pick, actor } = useApp();
+  const { run, busy } = useAction();
   const [sel, setSel] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const msgs = useRef<MessagesHandle>(null);
   const nodes = c.pathway_graph.nodes;
   const node = nodes.find((n) => n.id === sel);
   const evidence = nodes.filter((n) => n.completion === "evidence" && n.doc_status !== "skipped");
+  // required documents still missing before the MDT: what "ignore all missing" would waive (same rule as the server)
+  const blockingMissing = evidence.filter((n) => n.doc_status === "missing" && n.blocking !== false && n.type !== "start"
+    && ["intake", "diagnostics"].includes(n.phase ?? ""));
+  const waive = (nid: string) => run(() => api.post(`/api/cases/${c.id}/steps/${nid}/waive`, { by: actor, reason: t("waive.reason") }), t("waive.done"), reload);
+  const unwaive = (nid: string) => run(() => api.post(`/api/cases/${c.id}/steps/${nid}/unwaive`, { by: actor }), "✓", reload);
+  const waiveAll = () => window.confirm(t("waive.confirm"))
+    && run(() => api.post(`/api/cases/${c.id}/waive-missing`, { by: actor, reason: t("waive.reason") }), t("waive.done"), reload);
   const decisions = nodes.filter((n) => n.type === "decision" && n.status === "available" && n.id !== "decision");
   const open = c.tasks.filter((x) => x.status === "open" || x.status === "scheduled");
   const mine = open.filter((x) => !x.external), others = open.filter((x) => x.external);
@@ -126,6 +143,11 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
             <h3 className="grow">{t("pw.checklist")}</h3>
             <span className="count">{evidence.filter((n) => n.doc_status === "have").length}/{evidence.length}</span>
           </div>
+          {blockingMissing.length > 0 && (
+            <div style={{ padding: "8px 14px 0" }}>
+              <button className="sm ghost" disabled={busy} onClick={waiveAll} title={t("waive.hint")}>{t("waive.all")} ({blockingMissing.length})</button>
+            </div>
+          )}
           <div style={{ padding: "6px 10px" }}>
           {evidence.map((n) => (
             <div key={n.id} className="check" onClick={() => setSel(n.id)}>
@@ -134,8 +156,17 @@ export default function PathwayTab({ c, reload, go }: { c: CaseDetail; reload: (
                 <div className="small" style={{ fontWeight: 550 }}>{pick(n.label, n.label_en)}{n.blocking === false && <span className="faint" style={{ fontWeight: 400 }}> · {t("pw.optional")}</span>}</div>
                 {n.doc_status === "conflict" && <div className="xs" style={{ color: "var(--yellow)" }}>{t("doc.conflict")}</div>}
                 {n.doc_status === "missing" && !!n.detail?.missing?.length && <div className="xs" style={{ color: "var(--red)" }}>{n.detail.missing.map((m) => m.label).join(", ")}</div>}
+                {n.waived && <div className="xs" style={{ color: "var(--orange)" }}>{t("waive.by")} {n.waived.by} · {fmtDate(n.waived.on)}</div>}
               </div>
-              <span className="xs muted">{n.doc_status === "have" && n.evidence?.[0] ? fmtDate(n.evidence[0].date) : t(`doc.${n.doc_status ?? "missing"}`)}</span>
+              <span className="xs muted" style={{ textAlign: "right" }}>
+                {n.doc_status === "have" && n.evidence?.[0] ? fmtDate(n.evidence[0].date) : t(`doc.${n.doc_status ?? "missing"}`)}
+                {n.doc_status === "missing" && n.type !== "start" && (
+                  <div><button className="linkbtn" disabled={busy} onClick={(e) => { e.stopPropagation(); waive(n.id); }}>{t("waive.btn").toLowerCase()}</button></div>
+                )}
+                {n.doc_status === "waived" && (
+                  <div><button className="linkbtn" disabled={busy} onClick={(e) => { e.stopPropagation(); unwaive(n.id); }}>{t("waive.undo")}</button></div>
+                )}
+              </span>
             </div>
           ))}
           </div>

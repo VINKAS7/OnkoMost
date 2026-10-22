@@ -1,6 +1,7 @@
 """Patient identity: RČ (Czech personal number) + name + date of birth.
 
-A document whose RČ, name or birth date disagrees with the case is blocked ("wrong patient?").
+A document whose RČ, name or birth date disagrees with the case is blocked ("wrong patient?"). Images (DICOM) are
+checked by name and birth date only, see check_dicom_identity.
 """
 from __future__ import annotations
 
@@ -69,3 +70,30 @@ def check_identity(header: dict, case_rc: str, case_name: str, case_dob: date | 
     blocking = [i for i in issues if not i.startswith("Dokument neobsahuje")] or (
         ["Nelze ověřit identitu"] if not matched else [])
     return {"ok": not blocking, "issues": issues, "matched_on": matched}
+
+
+NO_IDENTITY_IN_IMAGES = "Snímky neobsahují identitu pacienta – potvrzeno nahrávajícím"
+
+
+def check_dicom_identity(meta: dict, case_name: str, case_dob: date | None) -> dict:
+    """Images rarely carry an RČ, and exported or research images are often de-identified ("LUNG1-131").
+    A real name or birth date that differs from the case blocks the series; no identity at all is accepted on the
+    uploader's word and stays visible as a note."""
+    issues, matched = [], []
+    # DICOM person names are "Family^Given"; a pseudonym has digits or no letters at all
+    name = " ".join((meta.get("patient_name") or "").replace("^", " ").split())
+    is_name = bool(name) and not meta.get("identity_removed") and all(w.isalpha() for w in name.split())
+    if is_name:
+        if case_name and sorted(fold(name).split()) != sorted(fold(case_name).split()):
+            issues.append(f"Jméno ve snímcích „{name}“ ≠ „{case_name}“")
+        else:
+            matched.append("name")
+    dob = meta.get("birth_date")
+    if dob and case_dob:
+        if dob != case_dob:
+            issues.append(f"Datum narození ve snímcích {dob:%d. %m. %Y} ≠ {case_dob:%d. %m. %Y}")
+        else:
+            matched.append("dob")
+    if issues:
+        return {"ok": False, "issues": issues, "matched_on": matched}
+    return {"ok": True, "issues": [] if matched else [NO_IDENTITY_IN_IMAGES], "matched_on": matched}

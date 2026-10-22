@@ -132,7 +132,9 @@ class GraphStore:
 
     # -- writes ------------------------------------------------------------------------------------
     def write_document(self, patient_uuid: str, doc_uid: str, meta: dict, facts: list[dict], flags: list[dict],
-                       chunks: list[dict] | None = None, text: str = "", original: bytes | None = None) -> None:
+                       chunks: list[dict] | None = None, text: str = "", original: bytes | None = None,
+                       imaging: dict | None = None) -> None:
+        """`imaging` (an image series' DICOM meta) goes to FHIR as an ImagingStudy instead of a DocumentReference."""
         meta = {**_clean(meta), "uid": doc_uid, "patient_uuid": patient_uuid}
 
         # 1) identifying data → FHIR (idempotent, so a failure later can simply be retried)
@@ -145,7 +147,10 @@ class GraphStore:
                 contacts[f"{patient_uuid}:contact_person:{f['key']}"] = (_clean(f["props"]), f.get("quote", ""))
         identity = records.upsert_patient(patient_uuid, ident)
         refs = {fid: records.upsert_contact(patient_uuid, fid, p, q) for fid, (p, q) in contacts.items()}
-        records.upsert_document(patient_uuid, doc_uid, meta, text, original)
+        if imaging:
+            records.upsert_imaging_study(patient_uuid, doc_uid, imaging)
+        else:
+            records.upsert_document(patient_uuid, doc_uid, meta, text, original)
 
         # 2) the pseudonymous graph → globals, in one transaction
         with db.transaction() as n:

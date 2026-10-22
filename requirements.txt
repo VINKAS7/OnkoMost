@@ -7,11 +7,11 @@ pydantic==2.11.7
 python-dotenv==1.1.1
 httpx==0.28.1
 python-docx==1.2.0
+# Reading Word, PDF, scans and photos (layout, tables, Czech OCR); pulls in PyTorch
+docling==2.43.0
 matplotlib==3.10.5
+# CT / MRI / PET images (DICOM)
+pydicom==3.0.2
 # InterSystems IRIS driver (SQL + native API for globals)
 intersystems-irispython==5.3.2
 pytest==8.4.1
-
-# Optional, only for scanned PDFs and images (also needs Tesseract with the Czech "ces" language pack):
-# pytesseract
-# pillow

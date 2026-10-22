@@ -16,7 +16,7 @@ TAG_CODE = "onkomost"
 TAG = {"system": TAG_SYSTEM, "code": TAG_CODE}
 TAG_PARAM = f"{TAG_SYSTEM}|{TAG_CODE}"
 # Order matters when deleting: resources that reference a Patient go first.
-TYPES = ("DocumentReference", "RelatedPerson", "Patient")
+TYPES = ("ImagingStudy", "DocumentReference", "RelatedPerson", "Patient")  # referencing resources before Patient
 
 
 class FhirError(RuntimeError):

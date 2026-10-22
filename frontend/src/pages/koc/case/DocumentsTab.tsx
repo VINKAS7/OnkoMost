@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { api, fmtDate } from "../../../api";
+import { CtViewer, FOLDER } from "../../../components/CtViewer";
 import { Empty, Tag } from "../../../components/ui";
 import { useAction, useApp } from "../../../ctx";
 import { HIDDEN_KINDS, kindLabel } from "../../../facts";
@@ -9,6 +10,7 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
   const { t, lang } = useApp();
   const { run, busy } = useAction();
   const [over, setOver] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   const upload = (files: FileList | null) => {
     if (!files?.length) return;
     const fd = new FormData();
@@ -22,12 +24,16 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
         {t("docs.drop")}
         <input type="file" multiple hidden disabled={busy} onChange={(e) => upload(e.target.files)} />
       </label>
+      <label className="linkbtn" style={{ marginTop: -6 }}>{t("ct.uploadFolder")}
+        <input type="file" multiple hidden disabled={busy} {...FOLDER} onChange={(e) => upload(e.target.files)} />
+      </label>
       <section style={{ overflowX: "auto" }}>
         <table>
           <thead><tr><th>{t("docs.date")}</th><th>{t("docs.doc")}</th><th>{t("docs.from")}</th><th>{t("docs.status")}</th><th>{t("docs.extracted")}</th><th /></tr></thead>
           <tbody>
             {c.documents.map((d) => (
-              <tr key={d.id}>
+              <Fragment key={d.id}>
+              <tr>
                 <td style={{ whiteSpace: "nowrap" }}>{fmtDate(d.doc_date)}{d.post_mdt && <div><Tag color="yellow">{t("docs.afterMdt")}</Tag></div>}</td>
                 <td>
                   <b>{d.title || d.filename}</b>
@@ -42,6 +48,7 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
                 </td>
                 <td className="small">
                   <div className="row wrap" style={{ gap: 3 }}>
+                    {d.summary?.series && <Tag>{d.summary.series.modality} · {d.summary.series.slices} {t("ct.slices")}</Tag>}
                     {d.summary?.facts && Object.entries(d.summary.facts).filter(([k]) => !HIDDEN_KINDS.has(k)).map(([k, v]) => <Tag key={k}>{kindLabel(k, lang)} {v}</Tag>)}
                     {!!d.summary?.llm_items && <Tag color="purple">{d.summary.llm_items} {t("docs.byAi")}</Tag>}
                     {!!d.summary?.unverified && <Tag color="yellow">{d.summary.unverified} {t("docs.toCheck")}</Tag>}
@@ -49,10 +56,15 @@ export default function DocumentsTab({ c, reload }: { c: CaseDetail; reload: () 
                   </div>
                 </td>
                 <td className="row">
+                  {d.doc_type === "image_series" && d.status === "done" && (
+                    <button className={`sm ${viewing === d.id ? "primary" : ""}`} onClick={() => setViewing(viewing === d.id ? null : d.id)}>{t("ct.view")}</button>
+                  )}
                   <a className="btn sm" href={`/api/documents/${d.id}/raw`}>{t("docs.original")}</a>
                   {d.doc_type !== "mdt_conclusion" && <button className="sm ghost" disabled={busy} onClick={() => run(() => api.post(`/api/documents/${d.id}/reprocess`), "✓", reload)}>{t("docs.rerun")}</button>}
                 </td>
               </tr>
+              {viewing === d.id && <tr><td colSpan={6}><CtViewer docId={d.id} /></td></tr>}
+              </Fragment>
             ))}
           </tbody>
         </table>

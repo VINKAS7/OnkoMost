@@ -83,7 +83,7 @@ PRIMARY = {
     "breast": ["breast"],
 }
 SEVERITY = ["negative", "suspicious", "involved", "metastasis", "primary"]
-SKIP_TYPES = {"lab", "pain_report", "psychology_report", "mdt_conclusion"}
+SKIP_TYPES = {"lab", "pain_report", "psychology_report", "mdt_conclusion", "image_series"}  # no organ text in these
 NEGATIVE = re.compile(r"\bbez\b|negativ|nebyl|neprokaz|nenalez|neni\b|nejsou\b|zadn|vylouc|nezvetsen|fyziologick|"
                       r"primeren|klidn|norm[a-z]* nalez", re.I)
 CHUNK = 3000

@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, fmtDate } from "../../api";
+import { FOLDER } from "../../components/CtViewer";
 import { DocCounts, Empty, PageHead, Status } from "../../components/ui";
 import { useAction, useApp } from "../../ctx";
 import { useFetch } from "../../hooks";
 import type { CaseMessage, CaseSummary, PathwayInfo } from "../../types";
+
+const isImage = (f: File) => /\.(dcm|dicom)$/i.test(f.name);
+// the file types the server reads as reports (backend/ingest/dicom.py REPORT_SUFFIXES)
+const REPORT = /\.(docx|pdf|png|jpe?g|tiff?|txt)$/i;
 
 function GpThread({ c, me, reload }: { c: CaseSummary; me: string; reload: () => void }) {
   const { t } = useApp();
@@ -34,7 +39,7 @@ function GpThread({ c, me, reload }: { c: CaseSummary; me: string; reload: () =>
           <textarea placeholder={t("msg.gpReply")} value={reply} onChange={(e) => setReply(e.target.value)} />
           <div className="row wrap">
             <button className="primary sm" disabled={!reply.trim() || busy} onClick={() => run(() => api.post(`/api/cases/${c.id}/messages`, { author_role: "gp", author: me, body: reply }), "✓", () => { setReply(""); reload(); })}>{t("msg.send")}</button>
-            <label className="linkbtn">{t("msg.gpUpload")}<input type="file" multiple hidden accept=".docx,.txt,.png,.jpg,.jpeg" onChange={(e) => upload(e.target.files)} /></label>
+            <label className="linkbtn">{t("msg.gpUpload")}<input type="file" multiple hidden accept=".docx,.pdf,.txt,.png,.jpg,.jpeg" onChange={(e) => upload(e.target.files)} /></label>
           </div>
         </div>
       )}
@@ -68,14 +73,20 @@ export default function GpPortal() {
   useEffect(() => { save("onkomost.gp", me); save("onkomost.gp.practice", practice); }, [me, practice]);
 
   const add = (list: FileList | null) => list && setFiles((f) => [...f, ...Array.from(list)]);
+  // a folder pick also brings the export's extras (LICENSE, DICOMDIR); like the server, keep only images and reports
+  const skipped = files.some(isImage) ? files.filter((f) => !isImage(f) && !REPORT.test(f.name)) : [];
+  const reports = files.filter((f) => !isImage(f) && !skipped.includes(f));
   const submit = () => {
     const fd = new FormData();
     Object.entries({ koc_id: koc, pathway_id: pathway, patient_name: name, rc, referrer_name: me, referrer_practice: practice })
       .forEach(([k, v]) => fd.append(k, String(v)));
-    files.forEach((f) => fd.append("files", f));
+    files.filter((f) => !skipped.includes(f)).forEach((f) => fd.append("files", f));
     run(() => api.post<{ case_id: number }>("/api/referrals", fd), t("gp.sent"), () => { setName(""); setRc(""); setFiles([]); reload(); });
   };
-  const ready = name.trim() && /^\d{6}\/?\d{3,4}$/.test(rc.replace(/\s/g, "")) && pathway && files.length > 0;
+  const rcOk = /^\d{6}\/?\d{3,4}$/.test(rc.replace(/\s/g, ""));
+  // say what still blocks "Send" instead of a silently disabled button
+  const missing = [!name.trim() && t("gp.pname"), !rcOk && t("gp.rc"), !pathway && t("gp.cancer"),
+                   !files.length && t("gp.docs")].filter(Boolean) as string[];
 
   return (
     <div className="page">
@@ -84,7 +95,9 @@ export default function GpPortal() {
         <section className="col" style={{ gap: 14 }}>
           <div className="row wrap" style={{ gap: 12 }}>
             <label className="field grow">{t("gp.pname")}<input value={name} onChange={(e) => setName(e.target.value)} /></label>
-            <label className="field" style={{ width: 200 }}>{t("gp.rc")}<input value={rc} onChange={(e) => setRc(e.target.value)} placeholder={t("gp.rc.ph")} /></label>
+            <label className="field" style={{ width: 200 }}>{t("gp.rc")}<input value={rc} onChange={(e) => setRc(e.target.value)} placeholder={t("gp.rc.ph")} />
+              {rc.trim() && !rcOk && <span className="xs" style={{ color: "var(--red)" }}>{t("gp.rc.bad")}</span>}
+            </label>
           </div>
           <div className="row wrap" style={{ gap: 12 }}>
             <label className="field grow">{t("gp.cancer")}
@@ -105,20 +118,30 @@ export default function GpPortal() {
               onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}>
               {t("gp.drop")}
               <div className="xs faint" style={{ marginTop: 4 }}>{t("gp.docs.d")}</div>
-              <input type="file" multiple hidden accept=".docx,.txt,.png,.jpg,.jpeg" onChange={(e) => add(e.target.files)} />
+              <input type="file" multiple hidden accept=".docx,.pdf,.txt,.png,.jpg,.jpeg,.dcm,.zip" onChange={(e) => add(e.target.files)} />
             </label>
-            {files.map((f, i) => (
+            <label className="linkbtn">{t("ct.uploadFolder")}
+              <input type="file" multiple hidden {...FOLDER} onChange={(e) => add(e.target.files)} />
+            </label>
+            {reports.map((f, i) => (
               <div key={i} className="row small"><span className="grow">{f.name}</span>
-                <button className="sm ghost" onClick={() => setFiles(files.filter((_, j) => j !== i))}>{t("act.cancel")}</button></div>
+                <button className="sm ghost" onClick={() => setFiles(files.filter((x) => x !== f))}>{t("act.cancel")}</button></div>
             ))}
+            {files.some(isImage) && (  // a CT export is one file per slice: show it as one line
+              <div className="row small"><span className="grow">{t("ct.images")}: {files.filter(isImage).length} {t("ct.files")}</span>
+                <button className="sm ghost" onClick={() => setFiles(files.filter((f) => !isImage(f)))}>{t("act.cancel")}</button></div>
+            )}
+            {skipped.length > 0 && <div className="xs muted">{t("gp.skipped")} {skipped.map((f) => f.name).join(", ")}</div>}
           </div>
           <div className="row wrap" style={{ gap: 12 }}>
             <label className="field grow">{t("gp.name")}<input value={me} onChange={(e) => setMe(e.target.value)} /></label>
             <label className="field grow">{t("gp.practice")}<input value={practice} onChange={(e) => setPractice(e.target.value)} /></label>
           </div>
           <div className="row" style={{ gap: 14 }}>
-            <button className="primary" disabled={!ready || busy} onClick={submit}>{busy ? t("gp.sending") : t("gp.send")}</button>
-            <span className="xs faint">{t("gp.next.1")}</span>
+            <button className="primary" disabled={missing.length > 0 || busy} onClick={submit}>{busy ? t("gp.sending") : t("gp.send")}</button>
+            {missing.length > 0
+              ? <span className="xs" style={{ color: "var(--orange)" }}>{t("gp.missing")} {missing.join(", ")}</span>
+              : <span className="xs faint">{t("gp.next.1")}</span>}
           </div>
         </section>
 

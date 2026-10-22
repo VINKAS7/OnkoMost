@@ -148,8 +148,16 @@ class PathwayGraph(BaseModel):
         return order
 
 
-def validate(graph: dict) -> PathwayGraph:
-    return PathwayGraph.model_validate(graph)
+def validate(graph: dict, editing: bool = False) -> PathwayGraph:
+    """`editing`: also the rules for a pathway being drafted – every document step needs a description, because the
+    LLM decides from a step's title and description whether a document holds the data the step requires."""
+    pg = PathwayGraph.model_validate(graph)
+    if editing:
+        for n in pg.nodes:
+            if n.completion == "evidence" and n.type != "start" and not (n.description.strip() or n.description_en.strip()):
+                raise ValueError(f"step '{n.label_en or n.label}' needs a description: the LLM uses it to decide which "
+                                 f"documents contain the data this step requires")
+    return pg
 
 
 def diff(base: dict, draft: dict) -> dict:

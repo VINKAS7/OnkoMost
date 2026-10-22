@@ -23,6 +23,7 @@ export function nodeClass(n: PathwayNode, plain: boolean): { cls: string; dot: s
     if (n.type === "mdt") return { cls: "mdt", dot: "teal" };
     return { cls: n.type === "end" ? "end" : "", dot: n.completion === "evidence" ? "orange" : "gray" };
   }
+  if (n.doc_status === "waived") return { cls: "skipped", dot: "orange" };  // gone on without it: not "not needed"
   if (n.status === "skipped") return { cls: "skipped", dot: "gray" };
   if (n.completion === "evidence") {
     const ds = n.doc_status ?? "missing";
@@ -68,7 +69,8 @@ function FlowNode({ data }: NodeProps<Node<Data>>) {
   // status in the header, one short line (date, choice, due) under the label
   let status = "", sub = "";
   if (!data.plain) {
-    if (n.status === "skipped") status = t("doc.skipped");
+    if (n.doc_status === "waived") status = t("doc.waived");
+    else if (n.status === "skipped") status = t("doc.skipped");
     else if (n.completion === "evidence" && n.doc_status) status = t(`doc.${n.doc_status}`);
     else if (n.status === "done") status = t("step.done");
     else if (n.status === "available") status = t("step.todo");

@@ -12,8 +12,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import date
 
 from backend.extract import llm
-from backend.extract.labs import abnormal_summary, parse_labs
-from backend.extract.schemas import INSTRUCTIONS, Conditions, MdtQuestion, Medications, Symptoms
+from backend.extract.labs import TUMOR_MARKERS, _num, abnormal_summary, parse_labs
+from backend.extract.schemas import INSTRUCTIONS, Conditions, DocumentContent, MdtQuestion, Medications, Symptoms
 from backend.extract.verify import quote_match
 from backend.ingest.classify import EXAM_LABELS, classify, facility_display, specialty
 from backend.ingest.identity import rc_info
@@ -153,6 +153,11 @@ def note_category(sentence: str) -> str | None:
     return None
 
 
+WHOLE_TEXT = 14000  # characters the LLM reads in whole_document – a full report or letter fits
+EXAM_TYPES = {"ct", "mri", "pet_ct", "ultrasound", "xray", "eus_fnb", "histology", "bronchoscopy", "colonoscopy",
+              "mammography"}
+
+
 class Extractor:
     def __init__(self, doc: DocText, use_llm: bool = True):
         self.doc = doc
@@ -214,7 +219,7 @@ class Extractor:
 
     def measurements(self) -> None:
         text = self.doc.full_text
-        for kind, pat, unit in [("height", r"Výška\s+(\d{2,3})\s*cm", "cm"), ("weight", r"[Hh]motnost\s+(\d{2,3})\s*kg", "kg")]:
+        for kind, pat, unit in [("height", r"[Vv]ýška\s+(\d{2,3})\s*cm", "cm"), ("weight", r"[Hh]motnost\s+(\d{2,3})\s*kg", "kg")]:
             for m in re.finditer(pat, text):
                 self.add("measurement", f"{kind}", {"measure": kind, "value": float(m.group(1)), "unit": unit,
                                                     "date": self.x.doc_date}, m.group(0))
@@ -384,6 +389,74 @@ class Extractor:
                                             "perineural_invasion": "perineurální invaz" in conclusion},
                  conclusion, section="ZÁVĚR")
 
+    def whole_document(self) -> None:
+        """The LLM reads the whole document and fills what the rules did not find. The rules know the sample reports'
+        layout (lab tables, CAPITAL headings); a letter or PDF that writes 'Hb 132 g/l, CA 19-9 486 kU/l' in running
+        text needs the model. Every value must come with a quote that is really in the document.
+
+        An exam whose result this document only reports (the CT quoted in a referral letter) is kept as `reported`:
+        it shows in the brief and the summary, but only the exam's own report completes its pathway step."""
+        text = (self.doc.markdown or self.doc.full_text)[:WHOLE_TEXT]  # Docling's Markdown: headings + tables
+        if not self.use_llm or not text.strip():
+            return
+        try:
+            self.x.llm_calls += 1
+            res = llm.extract(DocumentContent, INSTRUCTIONS["whole"], text, max_tokens=4000)
+        except llm.LLMUnavailable as e:
+            self.x.llm_errors.append(str(e))
+            return
+        have = {f.kind for f in self.x.facts}
+        found = lambda quote: bool(quote) and quote_match(quote, text) is not None  # noqa: E731
+        # no known section heading = a layout the rules do not know: their title / facility guesses are header lines
+        if not any(k not in ("_header", "_footer") for k in self.doc.sections):
+            guessed = self.x.facility
+            self.x.title = res.document_title.strip() or self.x.title
+            self.x.facility = res.facility.strip()
+            for f in self.x.facts:  # the exam the rules made carries the guessed place too
+                if f.kind == "exam" and f.props.get("place") == guessed:
+                    f.props["place"] = self.x.facility
+        if "lab" not in have:
+            for i, l in enumerate(x for x in res.labs if found(x.quote) and x.value in x.quote):
+                self.add("lab", f"{slug(l.analyte, 4)}-{i}", {
+                    "analyte": l.analyte, "value": l.value, "value_num": _num(l.value), "unit": l.unit, "ref": l.ref,
+                    "flag": l.flag if l.flag in ("H", "L") else None, "panel": "Z textu dokumentu",
+                    "is_tumor_marker": fold(l.analyte) in TUMOR_MARKERS, "date": parse_date(l.date) or self.x.doc_date},
+                    l.quote, "llm", source=text)
+        own = {f.props.get("exam_type") for f in self.x.facts if f.kind == "exam"} | {self.x.exam_type}
+        for e in res.exams:
+            kind = e.exam_type if e.exam_type in EXAM_TYPES else "other"
+            if not found(e.quote):
+                continue
+            if kind in own:
+                # the rules made this document's own exam but found no conclusion in an unfamiliar layout: use the model's
+                for f in self.x.facts:
+                    if f.kind == "exam" and f.props.get("exam_type") == kind and not (f.props.get("conclusion") or "").strip():
+                        f.props.update(conclusion=e.finding, result_text=e.finding)
+                        f.props["date"] = f.props.get("date") or parse_date(e.date)
+                    # …and the confirmed diagnosis the histology rule made from that (then empty) conclusion
+                    if (kind == "histology" and f.kind == "diagnosis" and f.props.get("status") == "confirmed"
+                            and not (f.props.get("name") or "").strip()):
+                        f.props["name"] = re.split(r"(?<=\.)\s", e.finding.strip())[0]
+                continue
+            when = parse_date(e.date)
+            self.add("exam", f"reported-{kind}-{when or slug(e.name)}", {
+                "exam_type": kind, "label": e.name, "date": when, "place": "", "conclusion": e.finding,
+                "result_text": e.finding, "reported": True, "reported_in": self.x.title}, e.quote, "llm", source=text)
+            own.add(kind)
+        if "symptom" not in have:
+            for s in res.symptoms:
+                if found(s.quote) and not is_not_a_symptom(s.symptom, s.onset, s.quote):
+                    self.add("symptom", slug(s.symptom), {"name": s.symptom, "onset": s.onset}, s.quote, "llm", source=text)
+        measured = {f.props.get("measure") for f in self.x.facts if f.kind == "measurement"}
+        for m in res.measures:
+            measure = {"weight": "weight", "height": "height", "ecog": "performance_status"}.get(m.measure)
+            if not measure or measure in measured or not found(m.quote):
+                continue
+            props = {"measure": measure, "value": m.value, "date": self.x.doc_date,
+                     **({"scale": "ECOG"} if measure == "performance_status" else {"unit": "kg" if measure == "weight" else "cm"})}
+            self.add("measurement", measure, props, m.quote, "llm", source=text)
+            measured.add(measure)
+
     def precautions(self) -> None:
         text = self.doc.full_text
         for drug in ANTICOAGULANTS:
@@ -437,6 +510,7 @@ class Extractor:
         if med_sec:
             self.medications(med_sec, "MEDIKACE")
         self.exam()
+        self.whole_document()
         self.precautions()
         self.date_sanity()
         return self.x

@@ -143,7 +143,7 @@ def discard_draft(version_id: int, koc_id: int) -> None:
 
 
 def update_draft(version_id: int, graph: dict, koc_id: int) -> None:
-    validate(graph)
+    validate(graph, editing=True)
     with session_scope() as s:
         v = s.get(PathwayVersion, version_id)
         if v.status != "draft":

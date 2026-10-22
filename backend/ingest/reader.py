@@ -1,20 +1,17 @@
 """Read a medical report into ordered blocks + sections + header fields.
 
-.docx is read directly (python-docx). PDFs/images go through Tesseract (Czech) if it is installed;
-the sample data never needs OCR.
+Docling reads Word, PDF (through PDFium), scans and photos (EasyOCR, Czech): headings, paragraphs and real tables in
+reading order, plus a Markdown version for the LLM. CT / MRI image series are DICOM and never come here
+(backend/ingest/dicom.py).
 """
 from __future__ import annotations
 
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-
-import docx
-import docx.table
-
-W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 DATE_RE = r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})"
 TITLE_RE = r"(?:doc\.\s*)?(?:MUDr\.|Mgr\.|Ing\.|RNDr\.|Bc\.|PhDr\.|prof\.)"
@@ -53,6 +50,7 @@ class Block:
     text: str = ""
     rows: list[list[str]] = field(default_factory=list)
     section: str = ""
+    heading: bool = False  # Docling recognised it as a section heading (any letter case)
 
 
 @dataclass
@@ -61,6 +59,7 @@ class DocText:
     header: dict
     sections: dict[str, str]  # heading -> text
     title: str
+    markdown: str = ""  # Docling's Markdown (headings, tables) – what the LLM reads
 
     @property
     def full_text(self) -> str:
@@ -96,32 +95,72 @@ def _is_heading(text: str) -> bool:
     return bool(letters) and len(text) <= 90 and all(c.isupper() for c in letters) and len(letters) >= 3
 
 
-def read_docx(path: Path) -> list[Block]:
-    d = docx.Document(str(path))
+_converter = None
+_converter_lock = threading.Lock()
+
+
+def _docling():
+    """One Docling converter per process: loading its layout / table / OCR models takes ~50 s on a CPU, a document
+    afterwards a few seconds. The models live in storage/docling-models (downloaded on first use) – a plain folder,
+    because Hugging Face's cache needs symlinks, which Windows only allows in Developer Mode."""
+    global _converter
+    with _converter_lock:
+        if _converter is None:
+            from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+            from docling.datamodel.base_models import InputFormat
+            from docling.datamodel.pipeline_options import EasyOcrOptions, PdfPipelineOptions
+            from docling.document_converter import DocumentConverter, ImageFormatOption, PdfFormatOption
+            from docling.utils.model_downloader import download_models
+
+            from backend.config import settings
+            models = settings.docling_models_dir
+            if not (models / "EasyOcr").is_dir():
+                download_models(models, with_layout=True, with_tableformer=True, with_easyocr=True,
+                                with_code_formula=False, with_picture_classifier=False)
+            opts = PdfPipelineOptions(
+                artifacts_path=models, do_table_structure=True, do_ocr=True,  # OCR only where a page has no text
+                ocr_options=EasyOcrOptions(lang=["cs", "en"], model_storage_directory=str(models / "EasyOcr"),
+                                           download_enabled=False))
+            # PDFium decodes the Czech letters of PDFs with old Mac font encodings, Docling's own parser does not
+            _converter = DocumentConverter(format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=opts, backend=PyPdfiumDocumentBackend),
+                InputFormat.IMAGE: ImageFormatOption(pipeline_options=opts)})
+        return _converter
+
+
+def read_docling(path: Path) -> tuple[list[Block], str]:
+    """Word, PDF, scans and photos → blocks in reading order (headings marked, tables as rows) + Markdown for the LLM."""
+    from docling_core.types.doc import GroupItem, GroupLabel, TableItem, TextItem
+    doc = _docling().convert(str(path)).document
     blocks: list[Block] = []
-    for el in d.element.body.iterchildren():
-        tag = el.tag.split("}")[1]
-        if tag == "p":
-            t = "".join(x.text or "" for x in el.iter(W + "t")).strip()
-            if t:
-                blocks.append(Block("p", re.sub(r"[ \t]+", " ", t)))
-        elif tag == "tbl":
-            tb = docx.table.Table(el, d)
-            rows = [[c.text.strip() for c in r.cells] for r in tb.rows]
-            blocks.append(Block("table", rows=rows))
-    return blocks
 
+    def walk(node) -> None:
+        for ref in node.children:
+            item = ref.resolve(doc)
+            if isinstance(item, GroupItem) and item.label == GroupLabel.INLINE:
+                # "Pacientka:" + "Alena Procházková, RČ …" are one line of the document
+                text = " ".join(t.text.strip() for t in (c.resolve(doc) for c in item.children)
+                                if isinstance(t, TextItem) and t.text.strip())
+                if text:
+                    blocks.append(Block("p", re.sub(r"[ \t]+", " ", text)))
+            elif isinstance(item, GroupItem):
+                walk(item)
+            elif isinstance(item, TableItem):
+                blocks.append(Block("table", rows=[[c.text.strip() for c in row] for row in item.data.grid]))
+            elif isinstance(item, TextItem):
+                label = item.label.value
+                if label not in ("page_header", "page_footer") and item.text.strip():
+                    blocks.append(Block("p", re.sub(r"[ \t]+", " ", item.text.strip()),
+                                        heading=label in ("section_header", "title")))
+                if item.children:
+                    walk(item)
 
-def read_ocr(path: Path) -> list[Block]:  # pragma: no cover - optional path
-    try:
-        import pytesseract
-        from PIL import Image
-    except ImportError as e:
-        raise RuntimeError("OCR needs `pip install pytesseract pillow` and Tesseract with the 'ces' language pack") from e
-    if path.suffix.lower() == ".pdf":
-        raise RuntimeError("Scanned PDFs: convert pages to images first (pdftoppm) – not needed for the sample data")
-    text = pytesseract.image_to_string(Image.open(path), lang="ces")
-    return [Block("p", line.strip()) for line in text.splitlines() if line.strip()]
+    walk(doc.body)
+    markdown = re.sub(r"\*\*(.+?)\*\*|(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", lambda m: m.group(1) or m.group(2),
+                      doc.export_to_markdown())  # bold / italic markers only distract the model
+    if sum(len(b.text) + sum(len(c) for r in b.rows for c in r) for b in blocks) < 40:
+        raise ValueError("Z dokumentu se nepodařilo přečíst žádný text / Could not read any text from this document")
+    return blocks, markdown
 
 
 HEADER_PATTERNS = {
@@ -181,7 +220,7 @@ def _sections(blocks: list[Block]) -> tuple[dict[str, str], str]:
     title = ""
     footer = re.compile(r"^(V\s.+\sdne\s|Datum:\s|Vydal:|Vydáno:|Kopie:)")
     for b in blocks:
-        if b.kind == "p" and _is_heading(b.text):
+        if b.kind == "p" and (b.heading or _is_heading(b.text)):
             current = b.text
             sections.setdefault(current, [])
         elif b.kind == "p" and current not in ("_header", "_footer") and footer.match(b.text):
@@ -203,15 +242,17 @@ def _sections(blocks: list[Block]) -> tuple[dict[str, str], str]:
     return {k: "\n".join(v) for k, v in sections.items()}, title
 
 
+DOCLING_SUFFIXES = {".docx", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+
+
 def read_document(path: Path) -> DocText:
     suffix = path.suffix.lower()
-    if suffix == ".docx":
-        blocks = read_docx(path)
-    elif suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".pdf"}:
-        blocks = read_ocr(path)
+    if suffix in DOCLING_SUFFIXES:
+        blocks, markdown = read_docling(path)
     elif suffix == ".txt":
         blocks = [Block("p", line.strip()) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        markdown = "\n".join(b.text for b in blocks)
     else:
         raise ValueError(f"Unsupported file type: {suffix}")
     sections, title = _sections(blocks)
-    return DocText(blocks=blocks, header=parse_header(blocks), sections=sections, title=title)
+    return DocText(blocks=blocks, header=parse_header(blocks), sections=sections, title=title, markdown=markdown)

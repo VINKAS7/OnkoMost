@@ -66,9 +66,51 @@ class CaseAnswer(BaseModel):
                                        description="Distinct numbers of the [D<number>] documents the answer is based on")
 
 
-class NodeFit(BaseModel):
-    matches: bool = Field(description="True only if this document is itself the report the step asks for")
-    quote: str = Field(default="", description="Exact substring of the document that shows it is that report")
+class LabValue(BaseModel):
+    analyte: str = Field(description="Name of the test as written, e.g. 'CA 19-9', 'celkový bilirubin', 'Hb'")
+    value: str = Field(description="The value exactly as written, e.g. '486', '7,8'")
+    unit: str = Field(default="", description="Unit as written, e.g. 'kU/l'")
+    ref: str = Field(default="", description="Reference range only if the document writes one next to the value")
+    flag: str = Field(default="", description="'H' or 'L' only if the document itself marks the value as high or low")
+    date: str = Field(default="", description="Date of the test as DD. MM. YYYY if the document states it")
+    quote: str = Field(description="Exact substring of the document that contains this value")
+
+
+class ReportedExam(BaseModel):
+    name: str = Field(description="The examination as written, e.g. 'CT hrudníku, břicha a pánve'")
+    exam_type: str = Field(description="One of: ct, mri, pet_ct, ultrasound, xray, eus_fnb, histology, bronchoscopy, "
+                                       "colonoscopy, mammography, other")
+    date: str = Field(default="", description="Date of the examination as DD. MM. YYYY")
+    finding: str = Field(description="Its result or conclusion, copied verbatim (may be several sentences)")
+    quote: str = Field(description="Exact substring of the document with the finding")
+
+
+class Measure(BaseModel):
+    measure: str = Field(description="One of: weight, height, ecog")
+    value: float = Field(description="kg for weight, cm for height, 0-4 for ECOG")
+    quote: str = Field(description="Exact substring of the document with the value")
+
+
+class DocumentContent(BaseModel):
+    document_title: str = Field(default="", description="What this document is, in Czech, e.g. 'Žádost o převzetí do "
+                                                        "KOC', 'CT hrudníku', 'Histologické vyšetření'")
+    facility: str = Field(default="", description="The hospital or department that issued it, if stated; else empty")
+    labs: list[LabValue] = Field(default_factory=list)
+    exams: list[ReportedExam] = Field(default_factory=list)
+    symptoms: list[SymptomItem] = Field(default_factory=list)
+    measures: list[Measure] = Field(default_factory=list)
+
+
+class StepMatch(BaseModel):
+    step_id: str = Field(description="The id of a step from the list, exactly as given")
+    quote: str = Field(description="Exact substring of the document that proves it fulfils this step")
+
+
+class DocumentSteps(BaseModel):
+    document_date: str = Field(default="", description="The date this document was written or issued, as DD. MM. YYYY "
+                                                       "(not the date of an exam it mentions); empty if not stated")
+    steps: list[StepMatch] = Field(default_factory=list,
+                                   description="The steps whose required data this document contains; empty if none")
 
 
 class BranchChoice(BaseModel):
@@ -90,4 +132,10 @@ INSTRUCTIONS = {
         "warnings for procedures (e.g. anticoagulants), and psychological/social concerns. "
         "category must be one of: wish, consent, warning, psychosocial, other."),
     "mdt_question": "What does the referring doctor request from the cancer centre / multidisciplinary team (MDT)?",
+    "whole": (
+        "Read this whole Czech medical document and list: (1) every laboratory value, with its date when stated; "
+        "(2) every examination whose RESULT the document reports (imaging, endoscopy, biopsy, histology, ...), with "
+        "its type, date and the finding copied verbatim - not exams that are only planned or recommended; (3) the "
+        "patient's current symptoms and when each started (not symptoms that are denied or absent); (4) weight, "
+        "height and ECOG performance status if stated. Copy values exactly as written; never add or compute values."),
 }

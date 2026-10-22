@@ -7,7 +7,7 @@ export const STATE_COLOR: Record<string, string> = {
   sent: "gray", in_triage: "blue", waiting_for_documents: "orange", complete: "purple", ready_for_mdt: "purple",
   mdt_conclusion: "blue", feedback_sent: "green", closed: "green",
 };
-export const DOC_COLOR: Record<string, string> = { have: "green", missing: "red", conflict: "yellow", conditional: "gray", skipped: "gray" };
+export const DOC_COLOR: Record<string, string> = { have: "green", missing: "red", conflict: "yellow", conditional: "gray", skipped: "gray", waived: "orange" };
 
 export function Tag({ color = "gray", children, title }: { color?: string; children: ReactNode; title?: string }) {
   return <span className={`tag ${color}`} title={title}>{children}</span>;

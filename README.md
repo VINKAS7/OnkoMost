@@ -22,17 +22,22 @@ often does not hear back.
 
 1. **The family doctor refers the patient.** They type only the patient's name, birth number (rodné číslo) and the
    suspected cancer type, and upload the reports they already have. No long form.
-2. **The documents are read automatically.** Simple rules read the parts that always look the same (lab tables,
-   dates, diagnosis codes). A language model reads the free text (symptoms, medication, history). Every value keeps
-   the exact sentence it came from, so a person can check it.
+2. **The documents are read automatically.** Word files, PDFs and scans or photos of paper reports are all
+   accepted. [Docling](https://github.com/docling-project/docling) turns each one into structured text, with its
+   headings and tables (scans through Czech OCR). Simple rules read the parts that always look the same (lab tables,
+   dates, diagnosis codes), and a language model reads the whole document for everything else (results quoted in a
+   letter, symptoms, medication, history). Every value keeps the exact sentence it came from, so a person can check
+   it. CT and MRI images (DICOM) take their own route, see below.
 3. **The case is compared with the cancer pathway.** Each cancer type has a pathway: the list of tests and steps
-   a patient needs before the MDT, based on the ESMO clinical guidelines. Each step shows green (we have the report),
-   red (it is missing) or yellow (two reports contradict each other). Missing reports become tasks with an owner and
-   a deadline.
+   a patient needs before the MDT, based on the ESMO clinical guidelines. The language model reads every document
+   in full together with the pathway and says which steps it fulfils, quoting the sentence that proves it. Each step
+   shows green (we have the report), red (it is missing) or yellow (two reports contradict each other). Missing
+   reports become tasks with an owner and a deadline.
 4. **The coordinator prepares the case.** They request missing reports, book tests, check conflicts and ask the
    family doctor questions. A doctor at the centre confirms the handover, the structured summary for the MDT.
-5. **The MDT decides.** The team sees a body map of the affected organs, a case brief, warnings, and can ask
-   questions about the case in plain language ("What is the CA 19-9?"). Every answer cites the report it comes from.
+5. **The MDT decides.** The team sees a body map of the affected organs, a case brief, warnings, the CT scans in a
+   simple viewer, and can ask questions about the case in plain language ("What is the CA 19-9?"). Every answer
+   cites the report it comes from.
    They can download a summary of the patient (an editable Word file with tables and charts) to discuss, and they
    record the decision.
 6. **The result goes back.** The family doctor gets the MDT record and confirms receipt. The insurer's review doctor
@@ -43,8 +48,8 @@ The app has three workspaces, one for each role:
 - **Referring doctor** (`/gp`): send a referral, follow its status, read the result, confirm receipt.
 - **Cancer centre** (`/koc`): the patient list, each patient's pathway, tasks, documents, handover, messages, the
   result to send, and voting on changes to the pathways.
-- **MDT meeting** (`/mdt`): body map, case brief, questions about the case, original documents, the summary
-  download, and the decision to treat.
+- **MDT meeting** (`/mdt`): body map, case brief, CT / MRI viewer, questions about the case, original documents,
+  the summary download, and the decision to treat.
 
 The whole interface works in English and Czech.
 
@@ -72,8 +77,9 @@ enough; it runs in Docker (see `infra/iris`).
 **Globals** are IRIS's native storage: sorted, multi-level keys, a bit like a very large nested dictionary that is
 saved to disk and supports transactions. Onkomost stores one small graph per patient under the global `^OnkGraph`:
 the patient, their documents, the facts read from each document, and warnings such as two dates that contradict
-each other. Each fact points to the documents and sentences that state it. The cancer pathway check is a set of
-fixed queries over this graph, so the green, red and yellow colours come from rules, not from the language model.
+each other. Each fact points to the documents and sentences that state it. The cancer pathway check runs as
+queries over this graph. A step turns green when a rule finds the right kind of report, or when the language model
+matched a document to it with a quote that is really in that document.
 This follows the [IRIS-Global-GraphRAG](https://github.com/fanji-isc/IRIS-Global-GraphRAG) pattern.
 
 **Vector search in SQL.** Each report is split into short pieces and stored in the SQL table `Onk.DocChunk`
@@ -94,6 +100,9 @@ for Health includes a FHIR R4 server, and Onkomost uses it for everything that i
 - **Patient**: name, birth number, birth date, sex, insurer, address and phone.
 - **RelatedPerson**: contact persons, such as a daughter the patient allowed us to inform.
 - **DocumentReference**: each received report, with its text and the original file.
+- **ImagingStudy**: each CT, MRI or PET series: which scan it was, the body part, the date and the list of its
+  slices. The image files themselves stay in `storage/raw`, the way a hospital keeps images in its image archive
+  (PACS) and uses ImagingStudy as the index to them.
 
 There are two reasons for this:
 
@@ -117,7 +126,11 @@ its own.
 - Every value it extracts must come with a quote from the report. If the quote is not found in the report, the
   value is marked for checking.
 - A doctor confirms the handover, and the MDT confirms the decision.
+- Each document goes to the model once, in full, together with the pathway steps. A step only counts as done when
+  the model's quote is found in the document; a letter that only mentions an exam does not count as that exam.
 - Anything with a fixed format (lab tables, codes, dates) is read by rules, not by the model.
+- The model reads Docling's version of the document, with its headings and tables, so it sees the report the way
+  a person does. A scan or photo of a paper report is read through OCR first.
 - Missing data is reported as missing, never guessed.
 - Only reports dated on or before the MDT date are used, so the team sees the case as it was on the day.
 
@@ -149,7 +162,7 @@ You can switch to another provider, or to a local [Ollama](https://ollama.com), 
 - Python 3.10 or newer
 - Node.js 18 or newer
 - An API key for an OpenAI-compatible model service (for example e-INFRA CZ)
-- About 5 GB of disk space for the IRIS image
+- About 5 GB of disk space for the IRIS image, and about 1 GB for Docling's models (downloaded on first use)
 - Optional: the Rakathon sample data, for the full demo story and the tests
 
 ### 1. Install
@@ -199,8 +212,12 @@ If Docker runs inside WSL rather than Docker Desktop, set `IRIS_HOST` in `backen
 python -m backend.config --check
 ```
 
-This tests IRIS, the FHIR server, the language model, the embeddings, the reranker, the workflow database and the
-sample data, and prints `[ok]` or `[FAIL]` for each.
+This tests IRIS, the FHIR server, Docling, the language model, the embeddings, the reranker, the workflow database
+and the sample data, and prints `[ok]` or `[FAIL]` for each.
+
+The first document you upload downloads Docling's layout, table and OCR models (about 800 MB) into
+`storage/docling-models`; after that everything runs locally. Loading them takes about a minute when the server
+starts reading its first document; each document after that takes a few seconds on a normal CPU.
 
 ### 5. Load example patients
 
@@ -227,6 +244,25 @@ Open <http://localhost:8000>. The backend also serves the built interface.
 For frontend work with live reload, run `npm run dev` in `frontend/` and open <http://localhost:5173>. It forwards
 API calls to port 8000.
 
+### Upload an example patient yourself
+
+The `example/` folder has two more lung cancer patients, each with Czech reports (`zpravy/`) and a CT scan (`ct/`).
+To send one through the app the way a family doctor would:
+
+1. Open the Referring doctor workspace and choose **Lung cancer**.
+2. Enter the name and birth number from the referral letter (the first file in `zpravy/`): Josef Král,
+   550814/1023, or Miroslav Hora, 710423/1035.
+3. Add the reports from `zpravy/`, then click **upload a CT / MRI folder** and pick the folder inside `ct/`.
+4. Send. The reports are read like any other, and the 114 CT slices become one CT series.
+
+In the cancer centre the CT series is one line in the Documents tab, with a View button. In the MDT workspace it
+appears under Imaging, where you can scroll through the slices and switch between the lung, soft tissue and bone
+windows. Do not upload `zdroj/`: it holds the published case report the example is based on, not patient records.
+
+The example CT is an illustration taken from another, anonymous patient with the same kind of tumour (The Cancer
+Imaging Archive, NSCLC-Radiomics, CC BY-NC 3.0). Because the images carry no name, the app accepts them on the
+uploader's word and says so. A CT that names a different patient, or a different birth date, is blocked.
+
 ### Using a different model provider
 
 All model settings are in `backend/.env`. For a local Ollama:
@@ -250,7 +286,7 @@ the next start.
 python -m pytest tests -q
 ```
 
-There are 45 tests. They need IRIS to be running and the Rakathon sample data; without the sample data they are
+There are 53 tests. They need IRIS to be running and the Rakathon sample data; without the sample data they are
 skipped. They check, among other things:
 
 - the extraction rules and the birth number check
@@ -262,6 +298,10 @@ skipped. They check, among other things:
 - the voting rules for pathway changes
 - the body map checks
 - the MDT summary download
+- Docling reads PDFs like Word reports, and reads a scanned report through OCR; the model's step matches only count
+  with a real quote
+- CT scans: slices grouped into one series and sorted, the identity rules for images, the viewer's windows, and
+  `example/Josef_Kral` sent in with its CT folder
 - that names and birth numbers exist only in FHIR, and that other data on the FHIR server is never changed
 
 The tests use their own workflow database but rebuild Onkomost's data in IRIS, so run `seed_demo` again afterwards.
@@ -295,7 +335,8 @@ backend/
   fhir/           the FHIR client and the mapping of patients, contacts and documents
   graph/          the patient graph in IRIS globals
   rag/            search over the reports and answers to questions about a case
-  ingest/         reading .docx files (and scans with OCR), recognising the document type, birth number checks
+  ingest/         reading documents with Docling (Word, PDF, scans), CT / MRI series (DICOM), document type,
+                  birth number checks
   extract/        rules and the language model that turn reports into facts
   pathway/        pathways, the comparison with a patient's case, and voting
   reports/        handover, MDT record, MDT summary download, letters, body map

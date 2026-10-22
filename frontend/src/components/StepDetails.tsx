@@ -26,6 +26,11 @@ export function StepDetails({ node, inCase = false }: { node: PathwayNode; inCas
           </Tag>
         )}
       </div>
+      {inCase && node.waived && (
+        <div className="small" style={{ color: "var(--orange)" }}>
+          {t("waive.by")} {node.waived.by} · {fmtDate(node.waived.on)}{node.waived.reason ? ` · ${node.waived.reason}` : ""}
+        </div>
+      )}
       {needs && (
         <div>
           <div className="section-title">{evidence ? t("sd.needs") : t("ed.description")}</div>
@@ -54,6 +59,19 @@ export function StepDetails({ node, inCase = false }: { node: PathwayNode; inCas
               <span className="muted">· {fmtDate(e.date)}</span>
             </div>
           )) : <div className="xs muted">{t("pw.notParsed")}</div>}
+        </div>
+      )}
+      {inCase && !!node.images?.length && (
+        <div>
+          <div className="section-title">{t("ct.images")}</div>
+          {node.images.map((im) => (
+            <div key={im.doc_id} className="small step-ev">
+              <Icon name="layers" />
+              <span>{im.title}</span>
+              <span className="muted">· {fmtDate(im.date)}</span>
+            </div>
+          ))}
+          <div className="xs muted">{t("ct.notEvidence")}</div>
         </div>
       )}
     </div>

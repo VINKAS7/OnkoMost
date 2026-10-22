@@ -52,6 +52,7 @@ L = {
         "referral_line": "doporučení", "pathway": "Stav onkologické cesty", "step": "Krok", "state": "Stav",
         "optional": "volitelné", "have": "doloženo", "missing": "chybí", "conflict": "nesoulad – ověřit",
         "skipped": "přeskočeno", "conditional": "podle rozhodnutí", "done": "hotovo", "open": "otevřené",
+        "waived": "vynecháno koordinátorem", "doc_waived": "Dokument vynechán koordinátorem (není doložen)",
         "issues": "Před rozhodnutím ověřit", "no_issues": "Bez otevřených problémů.", "notes": "Důležitá sdělení",
         "discussion": "Diskuse a rozhodnutí MDT", "treatment": "Navržená léčba", "conclusion": "Závěr MDT",
         "recs": "Doporučení", "remarks": "Poznámky z diskuse", "decided": "Rozhodnutí zapsáno",
@@ -79,6 +80,7 @@ L = {
         "referral_line": "referral", "pathway": "Cancer pathway status", "step": "Step", "state": "Status",
         "optional": "optional", "have": "documented", "missing": "missing", "conflict": "conflict – check",
         "skipped": "skipped", "conditional": "depends on a decision", "done": "done", "open": "open",
+        "waived": "waived by the coordinator", "doc_waived": "Document waived by the coordinator (not provided)",
         "issues": "Check before deciding", "no_issues": "No open issues.", "notes": "Important notes",
         "discussion": "MDT discussion and decision", "treatment": "Proposed treatment", "conclusion": "MDT conclusion",
         "recs": "Recommendations", "remarks": "Discussion notes", "decided": "Decision recorded",
@@ -102,6 +104,8 @@ def category(doc_type: str) -> str:
     """Same rows as the journey timeline in the UI (frontend/src/facts.ts docCategory)."""
     if doc_type in ("referral", "gp_summary"):
         return "referral"
+    if doc_type == "image_series":
+        return "imaging"
     if doc_type in ("imaging", "lab", "mdt_conclusion"):
         return {"mdt_conclusion": "mdt"}.get(doc_type, doc_type)
     if doc_type in ("procedure", "histology"):
@@ -351,11 +355,11 @@ def build(case, cutoff: date, entries: list[dict], result: dict, generated_on: d
         if n.get("phase") not in ("intake", "diagnostics", "supportive") or n.get("type") == "start":
             continue
         label = n.get("label") if lang == "cs" else (n.get("label_en") or n.get("label"))
-        status = "skipped" if st.get("status") == "skipped" else st.get("doc_status") or (
-            "done" if st.get("status") == "done" else "open")
+        status = "waived" if st.get("doc_status") == "waived" else "skipped" if st.get("status") == "skipped" else (
+            st.get("doc_status") or ("done" if st.get("status") == "done" else "open"))
         optional = n.get("blocking") is False
         # green = done, red = a required step is missing, amber = conflict; optional gaps stay neutral
-        color = {"have": STATUS_OK, "done": STATUS_OK, "conflict": STATUS_WARN}.get(status) or (
+        color = {"have": STATUS_OK, "done": STATUS_OK, "conflict": STATUS_WARN, "waived": STATUS_WARN}.get(status) or (
             STATUS_BAD if status == "missing" and not optional else None)
         if color:
             shade[len(steps)] = (1, color)
@@ -370,8 +374,11 @@ def build(case, cutoff: date, entries: list[dict], result: dict, generated_on: d
                           f"{f.get('detail') if lang == 'cs' else f.get('detail_en') or f.get('detail')}")
     for n in g["nodes"]:
         st = result["nodes"].get(n["id"], {})
+        label = n.get("label") if lang == "cs" else n.get("label_en") or n.get("label")
         if st.get("doc_status") == "missing" and n.get("blocking") is not False:
-            issues.append(f"{t['doc_missing']}: {n.get('label') if lang == 'cs' else n.get('label_en') or n.get('label')}")
+            issues.append(f"{t['doc_missing']}: {label}")
+        elif st.get("doc_status") == "waived":
+            issues.append(f"{t['doc_waived']}: {label}")
     for m in h["missing"]:
         if m["required"]:  # clinical gaps (ECOG…), not the optional contact fields of the form
             issues.append(f"{t['field_missing']}: {m['label'] if lang == 'cs' else m['label_en']}")

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, fmtDate } from "../../api";
+import { CtViewer } from "../../components/CtViewer";
 import { Icon } from "../../components/Icon";
 import { JourneyTimeline } from "../../components/JourneyTimeline";
 import { LabTrends } from "../../components/LabTrends";
@@ -69,6 +70,27 @@ function AskPanel({ c }: { c: CaseDetail }) {
         <input className="grow" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("mdt.ask.ph")} disabled={busy} />
         <button className="primary" disabled={busy || !q.trim()}>{t("mdt.ask.send")}</button>
       </form>
+    </section>
+  );
+}
+
+/** CT / MRI / PET series of the case (up to the MDT date), one at a time in the viewer. */
+function Imaging({ c }: { c: CaseDetail }) {
+  const { t } = useApp();
+  const series = c.documents.filter((d) => d.doc_type === "image_series" && d.status === "done" && !d.post_mdt);
+  const [sel, setSel] = useState<number | null>(null);
+  if (!series.length) return null;
+  const current = series.find((d) => d.id === sel) ?? series[0];
+  return (
+    <section className="col" style={{ gap: 8 }}>
+      <div className="section-title" style={{ margin: 0 }}>{t("ct.images")}</div>
+      {series.length > 1 && (
+        <div className="row wrap" style={{ gap: 6 }}>
+          {series.map((d) => <button key={d.id} className={`sm ${d.id === current.id ? "primary" : ""}`} onClick={() => setSel(d.id)}>{d.title}</button>)}
+        </div>
+      )}
+      <div className="small"><b>{current.title}</b> <span className="muted">· D{current.id} · {fmtDate(current.doc_date)}</span></div>
+      <CtViewer docId={current.id} />
     </section>
   );
 }
@@ -186,6 +208,7 @@ export default function MdtWorkspace() {
   if (!c) return <div className="page muted">{t("common.loading")}</div>;
   const conflicts = c.findings.filter((f) => f.kind === "mismatch" && !f.reviewed);
   const missing = c.pathway_graph.nodes.filter((n) => n.doc_status === "missing" && n.blocking !== false);
+  const waived = c.pathway_graph.nodes.filter((n) => n.doc_status === "waived");  // the MDT must see what was skipped
   const shown = (docId: number | null) => !filter || (docId != null && filter.docIds.includes(docId));
 
   return (
@@ -229,16 +252,18 @@ export default function MdtWorkspace() {
               <div className="small muted" style={{ marginTop: 6 }}>OA: {brief.comorbidities.join("; ")}</div>
             </section>
           )}
-          {(conflicts.length > 0 || missing.length > 0 || (brief?.missing.length ?? 0) > 0) && (
+          {(conflicts.length > 0 || missing.length > 0 || waived.length > 0 || (brief?.missing.length ?? 0) > 0) && (
             <section>
               <div className="section-title">{t("mdt.warnings")}</div>
               <div className="col small" style={{ gap: 4 }}>
                 {conflicts.map((f) => <Status key={f.key} color="yellow">{pick(f.detail, f.detail_en)}</Status>)}
                 {missing.map((n) => <Status key={n.id} color="red">{t("doc.missing")}: {pick(n.label, n.label_en)}</Status>)}
+                {waived.map((n) => <Status key={n.id} color="orange">{t("doc.waived")}: {pick(n.label, n.label_en)}{n.waived ? ` (${n.waived.by})` : ""}</Status>)}
                 {brief?.missing.map((m) => <Status key={m.key} color="gray">{t("hv.missing")}: {pick(m.label, (m as { label_en?: string }).label_en)}</Status>)}
               </div>
             </section>
           )}
+          <Imaging c={c} />
           <LabTrends caseId={c.id} cutoff={c.mdt_date} />
           <AskPanel c={c} />
           <DecisionPanel c={c} brief={brief} reload={reload} />
